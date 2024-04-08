@@ -117,7 +117,7 @@ struct InvReq {
 /** INTERFACES **/
 
 class AggregateStat;
-class Network;
+class zsimNetwork;
 
 /* Base class for all memory objects (caches and memories) */
 class MemObject : public GlobAlloc {
@@ -131,8 +131,8 @@ class MemObject : public GlobAlloc {
 /* Base class for all cache objects */
 class BaseCache : public MemObject {
     public:
-        virtual void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network) = 0;
-        virtual void setChildren(const g_vector<BaseCache*>& children, Network* network) = 0;
+        virtual void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, zsimNetwork* network) = 0;
+        virtual void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) = 0;
         virtual uint64_t invalidate(const InvReq& req) = 0;
 };
 

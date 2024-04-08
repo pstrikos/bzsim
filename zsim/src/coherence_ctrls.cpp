@@ -43,7 +43,7 @@ uint32_t MESIBottomCC::getParentId(Address lineAddr) {
 }
 
 
-void MESIBottomCC::init(const g_vector<MemObject*>& _parents, Network* network, const char* name) {
+void MESIBottomCC::init(const g_vector<MemObject*>& _parents, zsimNetwork* network, const char* name) {
     parents.resize(_parents.size());
     parentRTTs.resize(_parents.size());
     for (uint32_t p = 0; p < parents.size(); p++) {
@@ -198,7 +198,7 @@ uint64_t MESIBottomCC::processNonInclusiveWriteback(Address lineAddr, AccessType
 
 /* MESITopCC implementation */
 
-void MESITopCC::init(const g_vector<BaseCache*>& _children, Network* network, const char* name) {
+void MESITopCC::init(const g_vector<BaseCache*>& _children, zsimNetwork* network, const char* name) {
     if (_children.size() > MAX_CACHE_CHILDREN) {
         panic("[%s] Children size (%d) > MAX_CACHE_CHILDREN (%d)", name, (uint32_t)_children.size(), MAX_CACHE_CHILDREN);
     }

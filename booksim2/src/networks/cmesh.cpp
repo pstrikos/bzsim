@@ -27,7 +27,7 @@
 
 // ----------------------------------------------------------------------
 //
-// CMesh: Network with <Int> Terminal Nodes arranged in a concentrated
+// CMesh: BookSimNetwork with <Int> Terminal Nodes arranged in a concentrated
 //        mesh topology
 //
 // ----------------------------------------------------------------------

@@ -41,8 +41,8 @@
 class CC : public GlobAlloc {
     public:
         //Initialization
-        virtual void setParents(uint32_t childId, const g_vector<MemObject*>& parents, Network* network) = 0;
-        virtual void setChildren(const g_vector<BaseCache*>& children, Network* network) = 0;
+        virtual void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) = 0;
+        virtual void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) = 0;
         virtual void initStats(AggregateStat* cacheStat) = 0;
 
         //Access methods; see Cache for call sequence
@@ -74,7 +74,7 @@ class CC : public GlobAlloc {
  */
 
 class Cache;
-class Network;
+class zsimNetwork;
 
 /* NOTE: To avoid virtual function overheads, there is no BottomCC interface, since we only have a MESI controller for now */
 
@@ -109,7 +109,7 @@ class MESIBottomCC : public GlobAlloc {
             futex_init(&ccLock);
         }
 
-        void init(const g_vector<MemObject*>& _parents, Network* network, const char* name);
+        void init(const g_vector<MemObject*>& _parents, zsimNetwork* network, const char* name);
 
         inline bool isExclusive(uint32_t lineId) {
             MESIState state = array[lineId];
@@ -218,7 +218,7 @@ class MESITopCC : public GlobAlloc {
             futex_init(&ccLock);
         }
 
-        void init(const g_vector<BaseCache*>& _children, Network* network, const char* name);
+        void init(const g_vector<BaseCache*>& _children, zsimNetwork* network, const char* name);
 
         uint64_t processEviction(Address wbLineAddr, uint32_t lineId, bool* reqWriteback, uint64_t cycle, uint32_t srcId);
 
@@ -287,12 +287,12 @@ class MESICC : public CC {
         MESICC(uint32_t _numLines, bool _nonInclusiveHack, g_string& _name) : tcc(nullptr), bcc(nullptr),
             numLines(_numLines), nonInclusiveHack(_nonInclusiveHack), name(_name) {}
 
-        void setParents(uint32_t childId, const g_vector<MemObject*>& parents, Network* network) {
+        void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) {
             bcc = new MESIBottomCC(numLines, childId, nonInclusiveHack);
             bcc->init(parents, network, name.c_str());
         }
 
-        void setChildren(const g_vector<BaseCache*>& children, Network* network) {
+        void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
             tcc = new MESITopCC(numLines, nonInclusiveHack);
             tcc->init(children, network, name.c_str());
         }
@@ -418,12 +418,12 @@ class MESITerminalCC : public CC {
         //Initialization
         MESITerminalCC(uint32_t _numLines, const g_string& _name) : bcc(nullptr), numLines(_numLines), name(_name) {}
 
-        void setParents(uint32_t childId, const g_vector<MemObject*>& parents, Network* network) {
+        void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) {
             bcc = new MESIBottomCC(numLines, childId, false /*inclusive*/);
             bcc->init(parents, network, name.c_str());
         }
 
-        void setChildren(const g_vector<BaseCache*>& children, Network* network) {
+        void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
             panic("[%s] MESITerminalCC::setChildren cannot be called -- terminal caches cannot have children!", name.c_str());
         }
 
