@@ -41,7 +41,7 @@
 #include "packet_reply_info.hpp"
 
 TrafficManager * TrafficManager::New(Configuration const & config,
-                                     vector<Network *> const & net)
+                                     vector<BookSimNetwork *> const & net)
 {
     TrafficManager * result = NULL;
     string sim_type = config.GetStr("sim_type");
@@ -55,7 +55,7 @@ TrafficManager * TrafficManager::New(Configuration const & config,
     return result;
 }
 
-TrafficManager::TrafficManager( const Configuration &config, const vector<Network *> & net )
+TrafficManager::TrafficManager( const Configuration &config, const vector<BookSimNetwork *> & net )
     : Module( 0, "traffic_manager" ), _net(net), _empty_network(false), _deadlock_timer(0), _reset_time(0), _drain_time(-1), _cur_id(0), _cur_pid(0), _time(0)
 {
 
@@ -1984,7 +1984,7 @@ void TrafficManager::DisplayStats(ostream & os) const {
             << "Packet latency average = " << _plat_stats[c]->Average() << endl
             << "\tminimum = " << _plat_stats[c]->Min() << endl
             << "\tmaximum = " << _plat_stats[c]->Max() << endl
-            << "Network latency average = " << _nlat_stats[c]->Average() << endl
+            << "BookSimNetwork latency average = " << _nlat_stats[c]->Average() << endl
             << "\tminimum = " << _nlat_stats[c]->Min() << endl
             << "\tmaximum = " << _nlat_stats[c]->Max() << endl
             << "Slowest packet = " << _slowest_packet[c] << endl
@@ -2098,7 +2098,7 @@ void TrafficManager::DisplayOverallStats( ostream & os ) const {
         os << "\tmaximum = " << _overall_max_plat[c] / (double)_total_sims
            << " (" << _total_sims << " samples)" << endl;
 
-        os << "Network latency average = " << _overall_avg_nlat[c] / (double)_total_sims
+        os << "BookSimNetwork latency average = " << _overall_avg_nlat[c] / (double)_total_sims
            << " (" << _total_sims << " samples)" << endl;
         os << "\tminimum = " << _overall_min_nlat[c] / (double)_total_sims
            << " (" << _total_sims << " samples)" << endl;

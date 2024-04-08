@@ -30,7 +30,7 @@
 
 #include "network.hpp"
 
-class KNCube : public Network {
+class KNCube : public BookSimNetwork {
 
   bool _mesh;
 

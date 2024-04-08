@@ -27,7 +27,7 @@
 
 ////////////////////////////////////////////////////////////////////////
 //
-// Tree4: Network with 64 Terminal Nodes arranged in a tree topology
+// Tree4: BookSimNetwork with 64 Terminal Nodes arranged in a tree topology
 //        with 4 routers at the root of the tree
 //
 ////////////////////////////////////////////////////////////////////////
@@ -44,7 +44,7 @@
 #include <cassert>
 #include "network.hpp"
 
-class Tree4 : public Network {
+class Tree4 : public BookSimNetwork {
 
   int _k;
   int _n;

@@ -34,7 +34,7 @@
 #include <cassert>
 
 
-class FlatFlyOnChip : public Network {
+class FlatFlyOnChip : public BookSimNetwork {
 
   int _m;
   int _n;

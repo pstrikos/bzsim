@@ -27,7 +27,7 @@
 
 ////////////////////////////////////////////////////////////////////////
 //
-// QTree: A Quad-Tree Indirect Network.
+// QTree: A Quad-Tree Indirect BookSimNetwork.
 //
 //
 ////////////////////////////////////////////////////////////////////////
@@ -46,7 +46,7 @@
 #include "misc_utils.hpp"
 
 QTree::QTree( const Configuration& config, const string & name )
-: Network ( config, name )
+: BookSimNetwork ( config, name )
 {
   _ComputeSize( config );
   _Alloc( );

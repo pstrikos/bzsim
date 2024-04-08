@@ -27,7 +27,7 @@
 
 /*anynet
  *
- *Network setup file format
+ *BookSimNetwork setup file format
  *example 1:
  *router 0 router 1 15 router 2
  *
@@ -59,7 +59,7 @@
 map<int, int>* global_routing_table;
 
 AnyNet::AnyNet( const Configuration &config, const string & name )
-  :  Network( config, name ){
+  :  BookSimNetwork( config, name ){
 
   router_list.resize(2);
   _ComputeSize( config );
@@ -87,7 +87,7 @@ void AnyNet::_ComputeSize( const Configuration &config ){
   readFile();
 
   _channels =0;
-  cout<<"========================Network File Parsed=================\n";
+  cout<<"========================BookSimNetwork File Parsed=================\n";
   cout<<"******************node listing**********************\n";
   map<int,  int >::iterator iter;
   for(iter = node_list.begin(); iter!=node_list.end(); iter++){

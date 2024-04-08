@@ -63,7 +63,7 @@ protected:
 
 public:
 
-  BatchTrafficManager( const Configuration &config, const vector<Network *> & net );
+  BatchTrafficManager( const Configuration &config, const vector<BookSimNetwork *> & net );
   virtual ~BatchTrafficManager( );
 
   virtual void WriteStats( ostream & os = cout ) const;

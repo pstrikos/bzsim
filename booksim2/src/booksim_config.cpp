@@ -38,7 +38,7 @@
 BookSimConfig::BookSimConfig( )
 { 
   //========================================================
-  // Network options
+  // BookSimNetwork options
   //========================================================
 
   // Channel length listing file
@@ -312,7 +312,7 @@ BookSimConfig::BookSimConfig( )
   _int_map["channel_width"] = 128;
   _int_map["channel_sweep"] = 0;
 
-  //==================Network file===========================
+  //==================BookSimNetwork file===========================
   AddStrField("network_file","");
 }
 

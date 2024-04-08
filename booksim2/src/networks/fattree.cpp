@@ -29,7 +29,7 @@
 //
 // FatTree
 //
-//       Each level of the hierarchical indirect Network has
+//       Each level of the hierarchical indirect BookSimNetwork has
 //       k^(n-1) Routers. The Routers are organized such that 
 //       each node has k descendents, and each parent is
 //       replicated k  times.
@@ -56,7 +56,7 @@
  //#define FATTREE_DEBUG
 
 FatTree::FatTree( const Configuration& config,const string & name )
-  : Network( config ,name)
+  : BookSimNetwork( config ,name)
 {
   
 
@@ -132,10 +132,10 @@ void FatTree::_BuildNet( const Configuration& config )
   //
 
   //
-  // Router Connection Rule: Output Ports <gK Move DOWN Network
-  //                         Output Ports >=gK Move UP Network
-  //                         Input Ports <gK from DOWN Network
-  //                         Input Ports >=gK  from up Network
+  // Router Connection Rule: Output Ports <gK Move DOWN BookSimNetwork
+  //                         Output Ports >=gK Move UP BookSimNetwork
+  //                         Input Ports <gK from DOWN BookSimNetwork
+  //                         Input Ports >=gK  from up BookSimNetwork
 
   // Connecting  Injection & Ejection Channels  
   for ( pos = 0 ; pos < nPos ; ++pos ) {

@@ -27,7 +27,7 @@
 
 ////////////////////////////////////////////////////////////////////////
 //
-// QTree: A Quad-Tree Indirect Network.
+// QTree: A Quad-Tree Indirect BookSimNetwork.
 //
 //
 ////////////////////////////////////////////////////////////////////////
@@ -44,7 +44,7 @@
 #include <cassert>
 #include "network.hpp"
 
-class QTree : public Network {
+class QTree : public BookSimNetwork {
 
   int _k;
   int _n;
