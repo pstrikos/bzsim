@@ -69,12 +69,12 @@ class TimingEvent {
         uint64_t privCycle; //only touched by ContentionSim
 
     public:
+        std::string name;
         TimingEvent* next; //used by PrioQueue --- PRIVATE
-
     private:
         EventState state;
         uint64_t cycle;
-
+        Address addr;
         uint64_t minStartCycle;
         union {
             TimingEvent* child;
@@ -102,6 +102,10 @@ class TimingEvent {
 
         inline uint64_t getMinStartCycle() const {return minStartCycle;}
         inline void setMinStartCycle(uint64_t c) {minStartCycle = c;}
+
+
+        inline void setAddr(Address a){addr = a;}
+        inline uint32_t getAddr() const {return addr;}
 
         TimingEvent* addChild(TimingEvent* childEv, EventRecorder* evRec) {
             assert_msg(state == EV_NONE || state == EV_QUEUED, "adding child in invalid state %d %s -> %s", state, typeid(*this).name(), typeid(*childEv).name()); //either not scheduled or not executed yet
