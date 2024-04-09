@@ -43,7 +43,7 @@
 
 #include "network.hpp"
 
-class FatTree : public BookSimNetwork {
+class FatTree : public Network {
 
   int _k;
   int _n;

@@ -114,6 +114,9 @@ def buildSim(cppFlags, dir, type, pgo=None):
 
     env["LINKFLAGS"] = ""
     env["RPATH"] = []
+    
+    # Uncomment to activate a verbose linker
+   #env["LINKFLAGS"] += " -Xlinker --verbose "
 
     if useIcc:
         # icc libs
@@ -138,6 +141,22 @@ def buildSim(cppFlags, dir, type, pgo=None):
         env["CPPPATH"] += [joinpath(POLARSSLPATH, "include")]
         env["PINLIBS"] += ["polarssl"]
         env["CPPFLAGS"] += " -D_WITH_POLARSSL_=1 "
+
+    # Booksim
+    if "BOOKSIMPATH" in os.environ:
+        BOOKSIMPATH = os.environ["BOOKSIMPATH"]
+        env["LIBPATH"] += [BOOKSIMPATH + "src"]
+        env["CPPPATH"] += [BOOKSIMPATH + "src", BOOKSIMPATH + "src/allocators", BOOKSIMPATH + "src/arbiters", BOOKSIMPATH + "src/arbiters", BOOKSIMPATH + "src/networks", BOOKSIMPATH + "src/power", BOOKSIMPATH + "src/routers"]
+        env["CPPFLAGS"] += " -D_WITH_BOOKSIM_=1 "
+
+
+        if (type == "debug"):
+            env["LIBS"] += ["simbookdbg"]
+        elif (type == "perf"):
+            env["LIBS"] += ["simbookperf"]
+        else:
+            env["LIBS"] += ["simbook"]
+
 
     # Only include DRAMSim if available
     if "DRAMSIMPATH" in os.environ:

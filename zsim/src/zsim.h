@@ -28,10 +28,24 @@
 
 #include <stdint.h>
 #include <sys/time.h>
+#include <cstdlib>
 #include "constants.h"
 #include "debug.h"
 #include "locks.h"
 #include "pad.h"
+
+// BookSim headers
+#ifdef _WITH_BOOKSIM_
+#include "booksim.hpp"
+#include "routefunc.hpp"
+#include "traffic.hpp"
+#include "booksim_config.hpp"
+#include "trafficmanager.hpp"
+#include "random_utils.hpp"
+#include "network.hpp"
+#include "injection.hpp"
+#include "power_module.hpp"
+#endif 
 
 class Core;
 class Scheduler;
@@ -48,6 +62,7 @@ class PortVirtualizer;
 class VectorCounter;
 class AccessTraceWriter;
 class TraceDriver;
+class InterconnectInterface;
 template <typename T> class g_vector;
 
 struct ClockDomainInfo {

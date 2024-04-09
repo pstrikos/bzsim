@@ -30,7 +30,7 @@
 
 #include "network.hpp"
 
-class KNFly : public BookSimNetwork {
+class KNFly : public Network {
 
   int _k;
   int _n;

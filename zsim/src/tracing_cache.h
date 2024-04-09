@@ -37,7 +37,7 @@ class TracingCache : public Cache {
 
     public:
         TracingCache(uint32_t _numLines, CC* _cc, CacheArray* _array, ReplPolicy* _rp, uint32_t _accLat, uint32_t _invLat, g_string& _tracefile, g_string& _name);
-        void setChildren(const g_vector<BaseCache*>& children, Network* network);
+        void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network);
         uint64_t access(MemReq& req);
 };
 

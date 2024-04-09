@@ -43,7 +43,7 @@
 
 
 KNCube::KNCube( const Configuration &config, const string & name, bool mesh ) :
-BookSimNetwork( config, name )
+Network( config, name )
 {
   _mesh = mesh;
 

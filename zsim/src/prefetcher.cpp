@@ -29,14 +29,14 @@
 //#define DBG(args...) info(args)
 #define DBG(args...)
 
-void StreamPrefetcher::setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network) {
+void StreamPrefetcher::setParents(uint32_t _childId, const g_vector<MemObject*>& parents, zsimNetwork* network) {
     childId = _childId;
     if (parents.size() != 1) panic("Must have one parent");
     if (network) panic("Network not handled");
     parent = parents[0];
 }
 
-void StreamPrefetcher::setChildren(const g_vector<BaseCache*>& children, Network* network) {
+void StreamPrefetcher::setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
     if (children.size() != 1) panic("Must have one children");
     if (network) panic("Network not handled");
     child = children[0];

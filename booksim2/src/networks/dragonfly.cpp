@@ -147,7 +147,7 @@ int dragonfly_port(int rID, int source, int dest){
 
 
 DragonFlyNew::DragonFlyNew( const Configuration &config, const string & name ) :
-  BookSimNetwork( config, name )
+  Network( config, name )
 {
 
   _ComputeSize( config );

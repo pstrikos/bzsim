@@ -53,7 +53,7 @@
 #include "misc_utils.hpp"
 
 Tree4::Tree4( const Configuration& config, const string & name )
-: BookSimNetwork ( config, name )
+: Network ( config, name )
 {
   _ComputeSize( config );
   _Alloc( );

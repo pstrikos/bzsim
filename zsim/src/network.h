@@ -35,12 +35,12 @@
 #include <string>
 #include <unordered_map>
 
-class Network {
+class zsimNetwork {
     private:
         std::unordered_map<std::string, uint32_t> delayMap;
 
     public:
-        explicit Network(const char* filename);
+        explicit zsimNetwork(const char* filename);
         uint32_t getRTT(const char* src, const char* dst);
 };
 

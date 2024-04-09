@@ -37,7 +37,7 @@
 class BatchTrafficManager : public TrafficManager {
 
 protected:
-
+  InterconnectInterface* parent;
   int _max_outstanding;
   int _batch_size;
   int _batch_count;
@@ -63,7 +63,7 @@ protected:
 
 public:
 
-  BatchTrafficManager( const Configuration &config, const vector<BookSimNetwork *> & net );
+  BatchTrafficManager( const Configuration &config, const vector<Network *> & net, InterconnectInterface* parentInterface );
   virtual ~BatchTrafficManager( );
 
   virtual void WriteStats( ostream & os = cout ) const;

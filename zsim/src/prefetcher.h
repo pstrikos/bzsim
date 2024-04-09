@@ -106,8 +106,8 @@ class StreamPrefetcher : public BaseCache {
         explicit StreamPrefetcher(const g_string& _name) : timestamp(0), name(_name) {}
         void initStats(AggregateStat* parentStat);
         const char* getName() { return name.c_str();}
-        void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network);
-        void setChildren(const g_vector<BaseCache*>& children, Network* network);
+        void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, zsimNetwork* network);
+        void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network);
 
         uint64_t access(MemReq& req);
         uint64_t invalidate(const InvReq& req);

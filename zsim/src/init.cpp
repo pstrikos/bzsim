@@ -75,6 +75,10 @@
 #include "weave_md1_mem.h" //validation, could be taken out...
 #include "zsim.h"
 
+#ifdef _WITH_BOOKSIM_
+#include "interconnect_interface.hpp"
+#endif
+
 extern void EndOfPhaseActions(); //in zsim.cpp
 
 /* zsim should be initialized in a deterministic and logical order, to avoid re-reading config vars
@@ -420,6 +424,7 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
 }
 
 static void InitSystem(Config& config) {
+
     unordered_map<string, string> parentMap; //child -> parent
     unordered_map<string, vector<vector<string>>> childMap; //parent -> children (a parent may have multiple children)
 
@@ -435,7 +440,7 @@ static void InitSystem(Config& config) {
 
     // If a network file is specified, build a Network
     string networkFile = config.get<const char*>("sys.networkFile", "");
-    Network* network = (networkFile != "")? new Network(networkFile.c_str()) : nullptr;
+    zsimNetwork* network = (networkFile != "")? new zsimNetwork(networkFile.c_str()) : nullptr;
 
     // Build the caches
     vector<const char*> cacheGroupNames;

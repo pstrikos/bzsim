@@ -34,7 +34,7 @@
 #include "repl_policies.h"
 #include "stats.h"
 
-class Network;
+class zsimNetwork;
 
 /* General coherent modular cache. The replacement policy and cache array are
  * pretty much mix and match. The coherence controller interfaces are general
@@ -59,8 +59,8 @@ class Cache : public BaseCache {
         Cache(uint32_t _numLines, CC* _cc, CacheArray* _array, ReplPolicy* _rp, uint32_t _accLat, uint32_t _invLat, const g_string& _name);
 
         const char* getName();
-        void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network);
-        void setChildren(const g_vector<BaseCache*>& children, Network* network);
+        void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, zsimNetwork* network);
+        void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network);
         void initStats(AggregateStat* parentStat);
 
         virtual uint64_t access(MemReq& req);

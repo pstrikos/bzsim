@@ -35,7 +35,7 @@
 #include <map>
 #include <list>
 
-class AnyNet : public BookSimNetwork {
+class AnyNet : public Network {
 
   string file_name;
   //associtation between  nodes and routers

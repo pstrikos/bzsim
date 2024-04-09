@@ -37,11 +37,11 @@ const char* Cache::getName() {
     return name.c_str();
 }
 
-void Cache::setParents(uint32_t childId, const g_vector<MemObject*>& parents, Network* network) {
+void Cache::setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) {
     cc->setParents(childId, parents, network);
 }
 
-void Cache::setChildren(const g_vector<BaseCache*>& children, Network* network) {
+void Cache::setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
     cc->setChildren(children, network);
 }
 

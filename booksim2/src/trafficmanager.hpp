@@ -43,9 +43,13 @@
 #include "routefunc.hpp"
 #include "outputset.hpp"
 #include "injection.hpp"
+#include "callback.hpp"
+#include "interconnect_interface.hpp"
 
 //register the requests to a node
 class PacketReplyInfo;
+
+typedef booksim::CallbackBase<void,unsigned,uint64_t,uint64_t> Callback_t;
 
 class TrafficManager : public Module {
 
@@ -55,12 +59,16 @@ private:
   vector<vector<int> > _packet_size_rate;
   vector<int> _packet_size_max_val;
 
+  InterconnectInterface* parent;
 protected:
+
+  map<int, uint64_t> _in_flight_req_address;
+
   int _nodes;
   int _routers;
   int _vcs;
 
-  vector<BookSimNetwork *> _net;
+  vector<Network *> _net;
   vector<vector<Router *> > _router;
 
   // ============ Traffic ============ 
@@ -94,7 +102,7 @@ protected:
 
   // ============ Injection VC states  ============ 
 
-  vector<vector<BufferState *> > _buf_states;
+  vector<vector<BufferState *> > _buf_states; //one BufferState per node per subnet
 #ifdef TRACK_FLOWS
   vector<vector<vector<int> > > _outstanding_credits;
   vector<vector<vector<queue<int> > > > _outstanding_classes;
@@ -111,6 +119,7 @@ protected:
 
   vector<vector<int> > _qtime;
   vector<vector<bool> > _qdrained;
+  // contains the newly generated packets for each node (from _GeneratePacket)
   vector<vector<list<Flit *> > > _partial_packets;
 
   vector<map<int, Flit *> > _total_in_flight_flits;
@@ -231,7 +240,7 @@ protected:
 
   int _cur_id;
   int _cur_pid;
-  int _time;
+  int _time; //simulation time. Increases at end of each step()
 
   set<int> _flits_to_watch;
   set<int> _packets_to_watch;
@@ -261,11 +270,10 @@ protected:
 
   // ============ Internal methods ============ 
 protected:
-
   virtual void _RetireFlit( Flit *f, int dest );
 
   void _Inject();
-  void _Step( );
+  // void _Step( );
 
   bool _PacketsOutstanding( ) const;
   
@@ -290,15 +298,20 @@ protected:
   double _GetAveragePacketSize(int cl) const;
 
 public:
+  void _Step( );
+  int getVCs(){ return _vcs;}
+  void _ManuallyInjectPacket(int source, int dest, int size, int ctime);
+  void _ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr);
+  void _ManuallySetQdrained();
 
   static TrafficManager * New(Configuration const & config, 
-			      vector<BookSimNetwork *> const & net);
+			      vector<Network *> const & net, InterconnectInterface* parentInterface);
 
-  TrafficManager( const Configuration &config, const vector<BookSimNetwork *> & net );
+  TrafficManager( const Configuration &config, const vector<Network *> & net, InterconnectInterface* parentInterface);
   virtual ~TrafficManager( );
 
   bool Run( );
-
+  void printInjectedPackets();
   virtual void WriteStats( ostream & os = cout ) const ;
   virtual void UpdateStats( ) ;
   virtual void DisplayStats( ostream & os = cout ) const ;
@@ -308,6 +321,7 @@ public:
   inline int getTime() { return _time;}
   Stats * getStats(const string & name) { return _stats[name]; }
 
+  void Init();
 };
 
 template<class T>

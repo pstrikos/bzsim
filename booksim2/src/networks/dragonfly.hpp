@@ -31,7 +31,7 @@
 #include "network.hpp"
 #include "routefunc.hpp"
 
-class DragonFlyNew : public BookSimNetwork {
+class DragonFlyNew : public Network {
 
   int _m;
   int _n;

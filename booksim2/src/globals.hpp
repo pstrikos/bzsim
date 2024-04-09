@@ -33,6 +33,9 @@
 
 /*all declared in main.cpp*/
 
+class InterconnectInterface;
+extern InterconnectInterface *nocInterface;
+
 int GetSimTime();
 
 class Stats;

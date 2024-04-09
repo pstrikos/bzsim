@@ -35,7 +35,7 @@
 //#define DEBUG_FLY
 
 KNFly::KNFly( const Configuration &config, const string & name ) :
-BookSimNetwork( config, name )
+Network( config, name )
 {
   _ComputeSize( config );
   _Alloc( );

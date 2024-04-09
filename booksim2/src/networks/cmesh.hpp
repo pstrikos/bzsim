@@ -44,7 +44,7 @@
 #include "network.hpp"
 #include "routefunc.hpp"
 
-class CMesh : public BookSimNetwork {
+class CMesh : public Network {
 public:
   CMesh( const Configuration &config, const string & name );
   int GetN() const;

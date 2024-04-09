@@ -31,7 +31,7 @@
 using std::ifstream;
 using std::string;
 
-Network::Network(const char* filename) {
+zsimNetwork::zsimNetwork(const char* filename) {
     ifstream inFile(filename);
 
     if (!inFile) {
@@ -62,7 +62,7 @@ Network::Network(const char* filename) {
     inFile.close();
 }
 
-uint32_t Network::getRTT(const char* src, const char* dst) {
+uint32_t zsimNetwork::getRTT(const char* src, const char* dst) {
     string key(src);
     key += " ";
     key += dst;

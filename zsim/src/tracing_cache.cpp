@@ -32,7 +32,7 @@ TracingCache::TracingCache(uint32_t _numLines, CC* _cc, CacheArray* _array, Repl
     futex_init(&traceLock);
 }
 
-void TracingCache::setChildren(const g_vector<BaseCache*>& children, Network* network) {
+void TracingCache::setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
     Cache::setChildren(children, network);
     //We need to initialize the trace writer here because it needs the number of children
     atw = new AccessTraceWriter(tracefile, children.size());

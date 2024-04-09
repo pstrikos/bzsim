@@ -44,7 +44,7 @@
 #include <cassert>
 #include "network.hpp"
 
-class QTree : public BookSimNetwork {
+class QTree : public Network {
 
   int _k;
   int _n;

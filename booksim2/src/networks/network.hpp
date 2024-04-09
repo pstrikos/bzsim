@@ -45,7 +45,7 @@
 typedef Channel<Credit> CreditChannel;
 
 
-class BookSimNetwork : public TimedModule {
+class Network : public TimedModule {
 protected:
 
   int _size;
@@ -72,10 +72,10 @@ protected:
   void _Alloc( );
 
 public:
-  BookSimNetwork( const Configuration &config, const string & name );
-  virtual ~BookSimNetwork( );
+  Network( const Configuration &config, const string & name );
+  virtual ~Network( );
 
-  static BookSimNetwork *New( const Configuration &config, const string & name );
+  static Network *New( const Configuration &config, const string & name );
 
   virtual void WriteFlit( Flit *f, int source );
   virtual Flit *ReadFlit( int dest );

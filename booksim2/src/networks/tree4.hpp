@@ -44,7 +44,7 @@
 #include <cassert>
 #include "network.hpp"
 
-class Tree4 : public BookSimNetwork {
+class Tree4 : public Network {
 
   int _k;
   int _n;

@@ -53,27 +53,40 @@
 #include "network.hpp"
 #include "injection.hpp"
 #include "power_module.hpp"
-
+#include "interconnect_interface.hpp"
 
 
 ///////////////////////////////////////////////////////////////////////////////
 //Global declarations
 //////////////////////
 
- /* the current traffic manager instance */
-TrafficManager * trafficManager = NULL;
+InterconnectInterface *nocInterface =  InterconnectInterface::New("myconfig");;
+
 
 int GetSimTime() {
-  return trafficManager->getTime();
+  return nocInterface->GetIcntTime();
 }
+
+void setWatchOut(string watch_out_file){
+  if(watch_out_file == "") {
+        gWatchOut = NULL;
+    } else if(watch_out_file == "-") {
+        gWatchOut = &cout;
+    } else {
+        gWatchOut = new ofstream(watch_out_file.c_str());
+    }
+
+}
+
 
 class Stats;
 Stats * GetStats(const std::string & name) {
-  Stats* test =  trafficManager->getStats(name);
-  if(test == 0){
-    cout<<"warning statistics "<<name<<" not found"<<endl;
-  }
-  return test;
+//   Stats* test =  trafficManager->getStats(name);
+//   if(test == 0){
+    // cout<<"warning statistics "<<name<<" not found"<<endl;
+//   }
+//   return test;
+return 0;
 }
 
 /* printing activity factor*/
@@ -89,99 +102,3 @@ int gNodes;
 bool gTrace;
 
 ostream * gWatchOut;
-
-
-
-/////////////////////////////////////////////////////////////////////////////
-
-bool Simulate( BookSimConfig const & config )
-{
-  vector<BookSimNetwork *> net;
-
-  int subnets = config.GetInt("subnets");
-  /*To include a new network, must register the network here
-   *add an else if statement with the name of the network
-   */
-  net.resize(subnets);
-  for (int i = 0; i < subnets; ++i) {
-    ostringstream name;
-    name << "network_" << i;
-    net[i] = BookSimNetwork::New( config, name.str() );
-  }
-
-  /*tcc and characterize are legacy
-   *not sure how to use them 
-   */
-
-  assert(trafficManager == NULL);
-  trafficManager = TrafficManager::New( config, net ) ;
-
-  /*Start the simulation run
-   */
-
-  double total_time; /* Amount of time we've run */
-  struct timeval start_time, end_time; /* Time before/after user code */
-  total_time = 0.0;
-  gettimeofday(&start_time, NULL);
-
-  bool result = trafficManager->Run() ;
-
-
-  gettimeofday(&end_time, NULL);
-  total_time = ((double)(end_time.tv_sec) + (double)(end_time.tv_usec)/1000000.0)
-            - ((double)(start_time.tv_sec) + (double)(start_time.tv_usec)/1000000.0);
-
-  cout<<"Total run time "<<total_time<<endl;
-
-  for (int i=0; i<subnets; ++i) {
-
-    ///Power analysis
-    if(config.GetInt("sim_power") > 0){
-      Power_Module pnet(net[i], config);
-      pnet.run();
-    }
-
-    delete net[i];
-  }
-
-  delete trafficManager;
-  trafficManager = NULL;
-
-  return result;
-}
-
-
-int main( int argc, char **argv )
-{
-
-  BookSimConfig config;
-
-
-  if ( !ParseArgs( &config, argc, argv ) ) {
-    cerr << "Usage: " << argv[0] << " configfile... [param=value...]" << endl;
-    return 0;
- } 
-
-  
-  /*initialize routing, traffic, injection functions
-   */
-  InitializeRoutingMap( config );
-
-  gPrintActivity = (config.GetInt("print_activity") > 0);
-  gTrace = (config.GetInt("viewer_trace") > 0);
-  
-  string watch_out_file = config.GetStr( "watch_out" );
-  if(watch_out_file == "") {
-    gWatchOut = NULL;
-  } else if(watch_out_file == "-") {
-    gWatchOut = &cout;
-  } else {
-    gWatchOut = new ofstream(watch_out_file.c_str());
-  }
-  
-
-  /*configure and run the simulator
-   */
-  bool result = Simulate( config );
-  return result ? -1 : 0;
-}

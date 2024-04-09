@@ -49,7 +49,7 @@
 #include "dragonfly.hpp"
 
 
-BookSimNetwork::BookSimNetwork( const Configuration &config, const string & name ) :
+Network::Network( const Configuration &config, const string & name ) :
   TimedModule( 0, name )
 {
   _size     = -1; 
@@ -58,7 +58,7 @@ BookSimNetwork::BookSimNetwork( const Configuration &config, const string & name
   _classes  = config.GetInt("classes");
 }
 
-BookSimNetwork::~BookSimNetwork( )
+Network::~Network( )
 {
   for ( int r = 0; r < _size; ++r ) {
     if ( _routers[r] ) delete _routers[r];
@@ -77,10 +77,10 @@ BookSimNetwork::~BookSimNetwork( )
   }
 }
 
-BookSimNetwork * BookSimNetwork::New(const Configuration & config, const string & name)
+Network * Network::New(const Configuration & config, const string & name)
 {
   const string topo = config.GetStr( "topology" );
-  BookSimNetwork * n = NULL;
+  Network * n = NULL;
   if ( topo == "torus" ) {
     KNCube::RegisterRoutingFunctions() ;
     n = new KNCube( config, name, false );
@@ -124,7 +124,7 @@ BookSimNetwork * BookSimNetwork::New(const Configuration & config, const string 
   return n;
 }
 
-void BookSimNetwork::_Alloc( )
+void Network::_Alloc( )
 {
   assert( ( _size != -1 ) && 
 	  ( _nodes != -1 ) && 
@@ -179,7 +179,7 @@ void BookSimNetwork::_Alloc( )
   }
 }
 
-void BookSimNetwork::ReadInputs( )
+void Network::ReadInputs( )
 {
   for(deque<TimedModule *>::const_iterator iter = _timed_modules.begin();
       iter != _timed_modules.end();
@@ -188,7 +188,7 @@ void BookSimNetwork::ReadInputs( )
   }
 }
 
-void BookSimNetwork::Evaluate( )
+void Network::Evaluate( )
 {
   for(deque<TimedModule *>::const_iterator iter = _timed_modules.begin();
       iter != _timed_modules.end();
@@ -197,7 +197,7 @@ void BookSimNetwork::Evaluate( )
   }
 }
 
-void BookSimNetwork::WriteOutputs( )
+void Network::WriteOutputs( )
 {
   for(deque<TimedModule *>::const_iterator iter = _timed_modules.begin();
       iter != _timed_modules.end();
@@ -206,42 +206,42 @@ void BookSimNetwork::WriteOutputs( )
   }
 }
 
-void BookSimNetwork::WriteFlit( Flit *f, int source )
+void Network::WriteFlit( Flit *f, int source )
 {
   assert( ( source >= 0 ) && ( source < _nodes ) );
   _inject[source]->Send(f);
 }
 
-Flit *BookSimNetwork::ReadFlit( int dest )
+Flit *Network::ReadFlit( int dest )
 {
   assert( ( dest >= 0 ) && ( dest < _nodes ) );
   return _eject[dest]->Receive();
 }
 
-void BookSimNetwork::WriteCredit( Credit *c, int dest )
+void Network::WriteCredit( Credit *c, int dest )
 {
   assert( ( dest >= 0 ) && ( dest < _nodes ) );
   _eject_cred[dest]->Send(c);
 }
 
-Credit *BookSimNetwork::ReadCredit( int source )
+Credit *Network::ReadCredit( int source )
 {
   assert( ( source >= 0 ) && ( source < _nodes ) );
   return _inject_cred[source]->Receive();
 }
 
-void BookSimNetwork::InsertRandomFaults( const Configuration &config )
+void Network::InsertRandomFaults( const Configuration &config )
 {
   Error( "InsertRandomFaults not implemented for this topology!" );
 }
 
-void BookSimNetwork::OutChannelFault( int r, int c, bool fault )
+void Network::OutChannelFault( int r, int c, bool fault )
 {
   assert( ( r >= 0 ) && ( r < _size ) );
   _routers[r]->OutChannelFault( c, fault );
 }
 
-double BookSimNetwork::Capacity( ) const
+double Network::Capacity( ) const
 {
   return 1.0;
 }
@@ -250,14 +250,14 @@ double BookSimNetwork::Capacity( ) const
  * neceesary of the network, by default, call display on each router
  * and display the channel utilization rate
  */
-void BookSimNetwork::Display( ostream & os ) const
+void Network::Display( ostream & os ) const
 {
   for ( int r = 0; r < _size; ++r ) {
     _routers[r]->Display( os );
   }
 }
 
-void BookSimNetwork::DumpChannelMap( ostream & os, string const & prefix ) const
+void Network::DumpChannelMap( ostream & os, string const & prefix ) const
 {
   os << prefix << "source_router,source_port,dest_router,dest_port" << endl;
   for(int c = 0; c < _nodes; ++c)
@@ -280,7 +280,7 @@ void BookSimNetwork::DumpChannelMap( ostream & os, string const & prefix ) const
        << _eject[c]->GetSinkPort() << endl;
 }
 
-void BookSimNetwork::DumpNodeMap( ostream & os, string const & prefix ) const
+void Network::DumpNodeMap( ostream & os, string const & prefix ) const
 {
   os << prefix << "source_router,dest_router" << endl;
   for(int s = 0; s < _nodes; ++s)
