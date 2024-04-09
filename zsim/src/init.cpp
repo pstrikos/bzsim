@@ -77,6 +77,7 @@
 
 #ifdef _WITH_BOOKSIM_
 #include "interconnect_interface.hpp"
+#include "booksim_net_ctrl.h"
 #endif
 
 extern void EndOfPhaseActions(); //in zsim.cpp
@@ -425,6 +426,9 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
 
 static void InitSystem(Config& config) {
 
+#ifdef _WITH_BOOKSIM_
+    MemObject * noc = new BookSimNetwork("noc",0, nocInterface);
+#endif
     unordered_map<string, string> parentMap; //child -> parent
     unordered_map<string, vector<vector<string>>> childMap; //parent -> children (a parent may have multiple children)
 
