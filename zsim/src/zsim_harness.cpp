@@ -307,6 +307,7 @@ void LaunchProcess(uint32_t procIdx) {
 
 
 int main(int argc, char *argv[]) {
+
     if (argc == 2 && std::string(argv[1]) == "-v") {
         printf("%s\n", ZSIM_BUILDVERSION);
         exit(0);

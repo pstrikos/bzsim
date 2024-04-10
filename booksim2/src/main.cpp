@@ -60,11 +60,10 @@
 //Global declarations
 //////////////////////
 
-InterconnectInterface *nocInterface =  InterconnectInterface::New("myconfig");;
-
+InterconnectInterface *nocInterface;
 
 int GetSimTime() {
-  return nocInterface->GetIcntTime();
+  return (nocInterface != nullptr) ? nocInterface->GetIcntTime() : -1;
 }
 
 void setWatchOut(string watch_out_file){

@@ -327,6 +327,11 @@ class MemControllerBase : public MemObject {
         void initStats(AggregateStat* parentStat);
         void updateStats(void);
         void finish(void);
+
+        void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network){assert(0);}
+
+        void setCoord(const coordinates<int> coord) {panic("Should never be called");};
+        coordinates<int> getCoord(){panic("Should never be called");};
 };
 
 // DRAM access event base class

@@ -58,9 +58,11 @@ private:
   vector<vector<int> > _packet_size;
   vector<vector<int> > _packet_size_rate;
   vector<int> _packet_size_max_val;
-
+  int stepsBeforeUpdateStats;
   InterconnectInterface* parent;
 protected:
+
+  int nocFrequencyMHz;
 
   map<int, uint64_t> _in_flight_req_address;
 
@@ -240,7 +242,6 @@ protected:
 
   int _cur_id;
   int _cur_pid;
-  int _time; //simulation time. Increases at end of each step()
 
   set<int> _flits_to_watch;
   set<int> _packets_to_watch;
@@ -298,6 +299,7 @@ protected:
   double _GetAveragePacketSize(int cl) const;
 
 public:
+  int _time; //simulation time. Increases at end of each step() TODO: make it private again
   void _Step( );
   int getVCs(){ return _vcs;}
   void _ManuallyInjectPacket(int source, int dest, int size, int ctime);
@@ -321,6 +323,7 @@ public:
   inline int getTime() { return _time;}
   Stats * getStats(const string & name) { return _stats[name]; }
 
+  int GetStepsBeforeUpdateStats(){ return stepsBeforeUpdateStats;}
   void Init();
 };
 

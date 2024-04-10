@@ -111,6 +111,14 @@ class StreamPrefetcher : public BaseCache {
 
         uint64_t access(MemReq& req);
         uint64_t invalidate(const InvReq& req);
+
+        int getNumChildren() {panic("Should never be called");};
+        int getNumParents() {panic("Should never be called");};
+        void setGrandChildren(const g_vector<BaseCache*>& children) {panic("Should never be called");};
+        void incrNumGrandChildren(const int numGrandChildren){panic("Should never be called");};
+        g_vector<MemObject*> getParents() {panic("Should never be called");};
+        void setCoord(const coordinates<int> coord) {panic("Should never be called");};
+        coordinates<int> getCoord(){panic("Should never be called");};
 };
 
 #endif  // PREFETCHER_H_

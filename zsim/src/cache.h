@@ -55,12 +55,25 @@ class Cache : public BaseCache {
 
         g_string name;
 
+        int numParents, numChildren;
+        // NoC router address
+        coordinates<int> coord;
     public:
         Cache(uint32_t _numLines, CC* _cc, CacheArray* _array, ReplPolicy* _rp, uint32_t _accLat, uint32_t _invLat, const g_string& _name);
 
         const char* getName();
         void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, zsimNetwork* network);
         void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network);
+        void setGrandChildren(const g_vector<BaseCache*>& granChildren);
+        
+        void setCoord(const coordinates<int> _coord) {coord = _coord;};
+        coordinates<int> getCoord(){return coord;};
+
+        void incrNumGrandChildren(const int numGrandChildren);
+        g_vector<MemObject*> getParents();
+        int getNumChildren(){return numChildren;}
+        int getNumParents(){return numParents;}
+        
         void initStats(AggregateStat* parentStat);
 
         virtual uint64_t access(MemReq& req);

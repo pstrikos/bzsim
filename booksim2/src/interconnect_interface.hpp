@@ -56,11 +56,12 @@ public:
   void CreateInterconnect();
   
   void ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr);
+  bool Simulate( BookSimConfig const & config, vector<Network *>  net, int subnets);
   void Step();
 
-  void RegisterCallbacksInterface(booksim::TransactionCompleteCB *readDone,booksim::TransactionCompleteCB *writeDone);
-
-  Callback_t* ReturnReadData;
+  void RegisterCallbacksInterface(booksim::TransactionCompleteCB *readDone, booksim::TransactionCompleteCB *writeDone);
+  void CallbackEverything(uint64_t addr);
+  std::vector<Callback_t*> ReturnReadData;
 	Callback_t* WriteDataDone;
 
 //   //node side functions
@@ -70,8 +71,8 @@ public:
   void Advance();
 //   virtual bool Busy() const;
 //   virtual bool HasBuffer(unsigned deviceID, unsigned int size) const;
-  void DisplayStats() const;
-//   virtual void DisplayOverallStats() const;
+  void DisplayStats();
+  void DisplayOverallStats();
 //   unsigned GetFlitSize() const;
   
 //   virtual void DisplayState(FILE* fp) const;
@@ -81,12 +82,15 @@ public:
 //   void Transfer2BoundaryBuffer(int subnet, int output);
   
   int GetIcntTime() const;
-  
+  int getNocFrequency(){return nocFrequencyMHz;}
+  uint64_t getCurCycle(){return curCycle;}
+  void setCurCycle(uint64_t cycle){curCycle = cycle;}
 //   Stats* GetIcntStats(const string & name) const;
   
 //   Flit* GetEjectedFlit(int subnet, int node);
 protected:
-  
+  uint64_t curCycle;
+
   class _BoundaryBufferItem {
     public:
       _BoundaryBufferItem():_packet_n(0) {}
@@ -127,7 +131,7 @@ protected:
   vector<Network *> _net;
   int _vcs;
   int _subnets;
-  
+  int nocFrequencyMHz;
   //deviceID to icntID map
   //deviceID : Starts from 0 for shaders and then continues until mem nodes
   //which starts at location n_shader and then continues to n_shader+n_mem (last device)
@@ -136,6 +140,8 @@ protected:
   //icntID to deviceID map
   map<unsigned, unsigned> _reverse_node_map;
 
+  private:
+    int stepsBeforeUpdateStats, stepsCnt;
 };
 
 #endif

@@ -193,6 +193,7 @@ class DDRMemory : public MemObject {
         const bool deferredWrites;
         const bool closedPage;
         const uint32_t domain;
+        g_vector<MemObject*> parents;
 
         // DRAM timing parameters -- initialized in initTech()
         // All parameters are in memory clocks (multiples of tCK)
@@ -276,6 +277,19 @@ class DDRMemory : public MemObject {
         // Scheduling event interface
         uint64_t tick(uint64_t sysCycle);
         void recycleEvent(SchedEvent* ev);
+
+        void setParents(uint32_t childId, const g_vector<MemObject*>& _parents, zsimNetwork* network){
+            parents.resize(_parents.size());
+            // parentRTTs.resize(_parents.size());
+            for (uint32_t p = 0; p < _parents.size(); p++) {
+                parents[p] = _parents[p];
+                // parentRTTs[p] = (network)? network->getRTT(name, parents[p]->getName()) : 0;
+            }
+        }
+
+        void setCoord(const coordinates<int> coord) {panic("Should never be called");};
+        coordinates<int> getCoord(){panic("Should never be called");};
+
 
     private:
         AddrLoc mapLineAddr(Address lineAddr);

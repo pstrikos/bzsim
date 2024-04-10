@@ -34,6 +34,7 @@
 #include "memory_hierarchy.h"
 #include "pad.h"
 #include "stats.h"
+#include "network.h"
 
 //TODO: Now that we have a pure CC interface, the MESI controllers should go on different files.
 
@@ -42,7 +43,10 @@ class CC : public GlobAlloc {
     public:
         //Initialization
         virtual void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) = 0;
+        virtual g_vector<MemObject*> getParents() = 0;
         virtual void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) = 0;
+        virtual void setGrandChildren(const g_vector<BaseCache*>& granChildren) = 0;
+        virtual void incrNumGrandChildren(const int numGrandChildren) = 0;
         virtual void initStats(AggregateStat* cacheStat) = 0;
 
         //Access methods; see Cache for call sequence
@@ -110,6 +114,7 @@ class MESIBottomCC : public GlobAlloc {
         }
 
         void init(const g_vector<MemObject*>& _parents, zsimNetwork* network, const char* name);
+        g_vector<MemObject*> getParents();
 
         inline bool isExclusive(uint32_t lineId) {
             MESIState state = array[lineId];
@@ -199,6 +204,9 @@ class MESITopCC : public GlobAlloc {
 
         Entry* array;
         g_vector<BaseCache*> children;
+        g_vector<BaseCache*> grandChildren;
+        int numGrandChildren;
+
         g_vector<uint32_t> childrenRTTs;
         uint32_t numLines;
 
@@ -219,6 +227,10 @@ class MESITopCC : public GlobAlloc {
         }
 
         void init(const g_vector<BaseCache*>& _children, zsimNetwork* network, const char* name);
+        void setGrandChildren(const g_vector<BaseCache*>& _grandChildren);
+        void incrNumGrandChildren(const int _numGrandChildren){
+            numGrandChildren += _numGrandChildren;
+        }
 
         uint64_t processEviction(Address wbLineAddr, uint32_t lineId, bool* reqWriteback, uint64_t cycle, uint32_t srcId);
 
@@ -292,9 +304,21 @@ class MESICC : public CC {
             bcc->init(parents, network, name.c_str());
         }
 
+        g_vector<MemObject*> getParents(){
+            return bcc->getParents();
+        }
+        
         void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
             tcc = new MESITopCC(numLines, nonInclusiveHack);
             tcc->init(children, network, name.c_str());
+        }
+
+        void setGrandChildren(const g_vector<BaseCache*>& grandChildren) {
+            tcc->setGrandChildren(grandChildren);
+        }
+
+        void incrNumGrandChildren(const int numGrandChildren){
+            tcc->incrNumGrandChildren(numGrandChildren);
         }
 
         void initStats(AggregateStat* cacheStat) {
@@ -423,6 +447,10 @@ class MESITerminalCC : public CC {
             bcc->init(parents, network, name.c_str());
         }
 
+        g_vector<MemObject*> getParents(){
+            return bcc->getParents();
+        }
+
         void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
             panic("[%s] MESITerminalCC::setChildren cannot be called -- terminal caches cannot have children!", name.c_str());
         }
@@ -493,6 +521,9 @@ class MESITerminalCC : public CC {
         //Repl policy interface
         uint32_t numSharers(uint32_t lineId) {return 0;} //no sharers
         bool isValid(uint32_t lineId) {return bcc->isValid(lineId);}
+
+        void setGrandChildren(const g_vector<BaseCache*>& children) {panic("Should never be called");};
+    void incrNumGrandChildren(const int numGrandChildren) {panic("Should never be called");};
 };
 
 #endif  // COHERENCE_CTRLS_H_

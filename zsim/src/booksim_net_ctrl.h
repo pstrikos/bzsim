@@ -10,28 +10,34 @@
 #include "stats.h"
 #include <iostream>
 #include "interconnect_interface.hpp"
-
-// namespace DRAMSim {
-//     class MultiChannelMemorySystem;
-// };
+#include "coord.h"
 
 class BookSimAccEvent;
 
-class BookSimNetwork : public MemObject { 
+class BookSimNetwork : public BaseCache { 
     private:
         InterconnectInterface* nocIf;
         g_string name;
         int id;
         bool isLocal;
-        uint32_t minLatency = 2; //TODO: zll
+        uint32_t minLatency; //TODO: is this event used?
         uint32_t domain;
         g_vector<MemObject*> parents;
+        g_vector<BaseCache*> children;
+        int numChildren;
+        bool isLlnoc; // true if the noc interface is connected to LLC
 
-        //Booksim::NetworkInterface ??
-
+        
         std::multimap<uint64_t, BookSimAccEvent*> inflightRequests;
 
         uint64_t curCycle; //processor cycle, used in callbacks
+
+        int hopLatency = 3;
+        int flitsPerPacket = 5;
+        int meshDim = 3;        
+
+        int nocFreq, cpuFreq, nocSpeedup;
+        int nocCount, cpuCount; 
 
         // R/W stats
         PAD();
@@ -43,11 +49,9 @@ class BookSimNetwork : public MemObject {
         PAD();
 
     public:
-        BookSimNetwork(const char* _name, int _id, InterconnectInterface* _interface);
-        // BookSimNetwork(std::string& dramTechIni, std::string& dramSystemIni, std::string& outputDir, std::string& traceName, uint32_t capacityMB,
-                // uint64_t cpuFreqHz,  uint32_t _minLatency, uint32_t _domain, const g_string& _name, int id);
-        // BookSimNetwork();
+        BookSimNetwork(const char* _name, int _id, InterconnectInterface* _interface, int _cpuClk);
 
+        void enqueueTickEvent();
         const char* getName() {return name.c_str();}
         int getMemId() {
             return id;
@@ -60,9 +64,7 @@ class BookSimNetwork : public MemObject {
             return isLocal;
         }
 
-        void initStats(AggregateStat* parentStat){
-            
-        };
+        void initStats(AggregateStat* parentStat);
 
         // Record accesses
         uint64_t access(MemReq& req);
@@ -74,7 +76,7 @@ class BookSimNetwork : public MemObject {
         void enqueue(BookSimAccEvent* ev, uint64_t cycle);
     
         //parentless for now
-        void setParents(uint32_t _childId, const g_vector<MemObject*>& _parents, Network* network){
+        void setParents(uint32_t _childId, const g_vector<MemObject*>& _parents, zsimNetwork* network){
             parents.resize(_parents.size());
             // parentRTTs.resize(_parents.size());
             for (uint32_t p = 0; p < _parents.size(); p++) {
@@ -84,9 +86,24 @@ class BookSimNetwork : public MemObject {
         }
         bool hasParents(){return !parents.empty();}
         
+        void setChildren(const g_vector<BaseCache*>& _children, zsimNetwork* network);
+        inline int getNumChildren() {return numChildren;}
+        uint64_t invalidate(const InvReq& req);
+
+        void DisplayStats(){nocIf->DisplayOverallStats();}
+
+        void setLlnoc(bool _isLlnoc){isLlnoc = _isLlnoc;}
+
+        void setGrandChildren(const g_vector<BaseCache*>& children) {panic("Should never be called");};
+        void incrNumGrandChildren(const int numGrandChildren){panic("Should never be called");};
+        int getNumParents() {panic("Should never be called");};
+        g_vector<MemObject*> getParents() {panic("Should never be called");};
+        void setCoord(const coordinates<int> coord) {panic("Should never be called");};
+        coordinates<int> getCoord(){panic("Should never be called");};
+
     private:
-        void noc_read_return_cb(uint32_t id, uint64_t addr, uint64_t returnCycle);
-        void noc_write_return_cb(uint32_t id, uint64_t addr, uint64_t returnCycle){};
+        void noc_read_return_cb(uint32_t id, uint64_t addr, uint64_t latency);
+        void noc_write_return_cb(uint32_t id, uint64_t addr, uint64_t latency);
 };
 
 #endif  

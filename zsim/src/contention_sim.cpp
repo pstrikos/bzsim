@@ -66,6 +66,10 @@ ContentionSim::ContentionSim(uint32_t _numDomains, uint32_t _numSimThreads) {
     lastLimit = 0;
     inCSim = false;
 
+#ifdef _WITH_BOOKSIM_
+    topNoc = gm_calloc<BookSimNetwork>(1);
+#endif
+
     domains = gm_calloc<DomainData>(numDomains);
     simThreads = gm_calloc<SimThreadData>(numSimThreads);
 

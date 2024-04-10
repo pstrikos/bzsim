@@ -32,6 +32,8 @@
 #include "g_std/g_vector.h"
 #include "galloc.h"
 #include "locks.h"
+#include "g_std/g_string.h"
+#include "coord.h"
 
 /** TYPES **/
 
@@ -73,7 +75,6 @@ const char* MESIStateName(MESIState s);
 inline bool IsGet(AccessType t) { return t == GETS || t == GETX; }
 inline bool IsPut(AccessType t) { return t == PUTS || t == PUTX; }
 
-
 /* Memory request */
 struct MemReq {
     Address lineAddr;
@@ -102,6 +103,10 @@ struct MemReq {
 
     inline void set(Flag f) {flags |= f;}
     inline bool is (Flag f) const {return flags & f;}
+
+    bool nocReq; // true if the request originates from a NoC instance
+    uint32_t nocChildId;
+    coordinates<int> nocCoord; 
 };
 
 /* Invalidation/downgrade request */
@@ -112,6 +117,8 @@ struct InvReq {
     bool* writeback;
     uint64_t cycle;
     uint32_t srcId;
+    bool nocReq;
+    uint32_t nocChildId;
 };
 
 /** INTERFACES **/
@@ -126,13 +133,23 @@ class MemObject : public GlobAlloc {
         virtual uint64_t access(MemReq& req) = 0;
         virtual void initStats(AggregateStat* parentStat) {}
         virtual const char* getName() = 0;
+        virtual void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) = 0;
+        virtual void setCoord(const coordinates<int> coord) = 0;
+        virtual coordinates<int> getCoord() = 0;
 };
 
 /* Base class for all cache objects */
 class BaseCache : public MemObject {
     public:
+        bool connectToNoc; 
         virtual void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, zsimNetwork* network) = 0;
+        virtual g_vector<MemObject*> getParents() = 0;
         virtual void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) = 0;
+        virtual void setGrandChildren(const g_vector<BaseCache*>& grandChildren) = 0;
+        
+        virtual void incrNumGrandChildren(const int numGrandChildren) = 0;
+        virtual int getNumChildren() = 0; 
+        virtual int getNumParents() = 0; 
         virtual uint64_t invalidate(const InvReq& req) = 0;
 };
 

@@ -52,6 +52,9 @@ void MESIBottomCC::init(const g_vector<MemObject*>& _parents, zsimNetwork* netwo
     }
 }
 
+g_vector<MemObject*> MESIBottomCC::getParents(){
+    return parents;
+}
 
 uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle, uint32_t srcId) {
     MESIState* state = &array[lineId];
@@ -209,6 +212,14 @@ void MESITopCC::init(const g_vector<BaseCache*>& _children, zsimNetwork* network
         childrenRTTs[c] = (network)? network->getRTT(name, children[c]->getName()) : 0;
     }
 }
+
+void MESITopCC::setGrandChildren(const g_vector<BaseCache*>& _grandChildren){
+    grandChildren.resize(_grandChildren.size());
+    for (uint32_t c = 0; c < grandChildren.size(); c++) {
+        grandChildren[c] = _grandChildren[c];
+    }
+}
+
 
 uint64_t MESITopCC::sendInvalidates(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId) {
     //Send down downgrades/invalidates
