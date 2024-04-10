@@ -71,6 +71,8 @@ class TimingEvent {
     public:
         std::string name;
         TimingEvent* next; //used by PrioQueue --- PRIVATE
+        void setAddr(Address a){addr = a;}
+        inline uint32_t getAddr() const {return addr;}
     private:
         EventState state;
         uint64_t cycle;
@@ -94,18 +96,16 @@ class TimingEvent {
 
         inline uint32_t getDomain() const {return domain;}
         inline uint32_t getNumChildren() const {return numChildren;}
+        inline uint32_t getNumParents() const {return numParents;}
         inline uint32_t getPreDelay() const {return preDelay;}
         inline uint32_t getPostDelay() const {return postDelay;}
+        inline TimingEvent* getChild() {return child;}
 
         inline void setPreDelay(uint32_t d) {preDelay = d;}
         inline void setPostDelay(uint32_t d) {postDelay = d;}
 
         inline uint64_t getMinStartCycle() const {return minStartCycle;}
         inline void setMinStartCycle(uint64_t c) {minStartCycle = c;}
-
-
-        inline void setAddr(Address a){addr = a;}
-        inline uint32_t getAddr() const {return addr;}
 
         TimingEvent* addChild(TimingEvent* childEv, EventRecorder* evRec) {
             assert_msg(state == EV_NONE || state == EV_QUEUED, "adding child in invalid state %d %s -> %s", state, typeid(*this).name(), typeid(*childEv).name()); //either not scheduled or not executed yet
@@ -143,6 +143,21 @@ class TimingEvent {
 
         TimingEvent* addChild(TimingEvent* childEv, EventRecorder& evRec) {
             return addChild(childEv, &evRec);
+        }
+
+        TimingEvent* addGrandChild(TimingEvent* childEv, EventRecorder& evRec) {
+            assert(numChildren == 1);
+            return child->addChild(childEv, &evRec);
+        }
+
+        TimingEvent* addGrandGrandChild(TimingEvent* childEv, EventRecorder& evRec) {
+            TimingEvent* lastEv = this;
+            while(lastEv->getNumChildren() != 0){
+               assert(numChildren == 1);
+               lastEv = lastEv->getChild();
+            }
+            // by now I have the last child in the chain of booksim and dramsim events 
+            return lastEv->addChild(childEv, &evRec);
         }
 
         virtual void parentDone(uint64_t startCycle); // see cpp
@@ -183,10 +198,14 @@ class TimingEvent {
         void done(uint64_t doneCycle) {
             assert(state == EV_RUNNING); //ContentionSim sets it when calling simulate()
             state = EV_DONE;
+            // vLambda is a function which take childPtr as an argument
+            // the capture clause [] gives access to vLambda in doneCycle (pass by value)
+            // and (this) timingEvent
             auto vLambda = [this, doneCycle](TimingEvent** childPtr) {
                 checkDomain(*childPtr);
                 (*childPtr)->parentDone(doneCycle+postDelay);
             };
+            // uses the vLambda to run parentDone() for the child/children of (this) 
             visitChildren< decltype(vLambda) >(vLambda);
             freeEvent();  // NOTE: immediately reclaimed!
         }

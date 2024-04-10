@@ -78,6 +78,7 @@
 #ifdef _WITH_BOOKSIM_
 #include "interconnect_interface.hpp"
 #include "booksim_net_ctrl.h"
+#include "coord.h"
 #endif
 
 extern void EndOfPhaseActions(); //in zsim.cpp
@@ -375,6 +376,10 @@ MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t fre
 }
 
 typedef vector<vector<BaseCache*>> CacheGroup;
+#ifdef _WITH_BOOKSIM_
+typedef vector<vector<BookSimNetwork*>> NocGroup;
+#endif
+
 
 CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal) {
     CacheGroup* cgp = new CacheGroup;
@@ -400,6 +405,37 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
     uint32_t banks = config.get<uint32_t>(prefix + "banks", 1);
     uint32_t caches = config.get<uint32_t>(prefix + "caches", 1);
 
+    // Read the noc coordinates of the current cache level (if they exist) from zsim's configuration file,
+    // and add them in networkCoordMap that will later be used to set each caches coordinates
+    bool connectedToNoc = config.exists(prefix + "netcoord");
+#ifdef _WITH_BOOKSIM_   
+    std::string netCoord = "";
+    std::vector<coordinates<int>> cacheCoord;
+    if(connectedToNoc){
+        netCoord = config.get<const char*>(prefix + "netcoord");
+  
+        std::stringstream ss(netCoord);
+        std::string coordStr;
+        while (std::getline(ss, coordStr, ' ')) {
+            // Create a stringstream from the extracted substring
+            std::stringstream coordSs(coordStr);
+
+            std::string xStr, yStr;
+            // Extract x and y values separated by commas from 'coordSs'
+            std::getline(coordSs, xStr, ',');
+            std::getline(coordSs, yStr, ',');
+
+            // Convert x and y values to integers
+            int x = std::stoi(xStr);
+            int y = std::stoi(yStr);
+
+            // Create a coordinates<int> object and add it to the vector
+            coordinates<int> coord = { x, y };
+            cacheCoord.push_back(coord);
+        }
+    }
+#endif  
+
     uint32_t bankSize = size/banks;
     if (size % banks != 0) {
         panic("%s: banks (%d) does not divide the size (%d bytes)", name.c_str(), banks, size);
@@ -418,17 +454,54 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
             g_string bankName(ss.str().c_str());
             uint32_t domain = (i*banks + j)*zinfo->numDomains/(caches*banks); //(banks > 1)? nextDomain() : (i*banks + j)*zinfo->numDomains/(caches*banks);
             cg[i][j] = BuildCacheBank(config, prefix, bankName, bankSize, isTerminal, domain);
+            if(connectedToNoc){
+                networkCoordMap[ss.str()] = {cacheCoord[i+j]}; 
+            }
         }
     }
 
     return cgp;
 }
 
-static void InitSystem(Config& config) {
 
 #ifdef _WITH_BOOKSIM_
-    MemObject * noc = new BookSimNetwork("noc",0, nocInterface);
+NocGroup* BuildNocGroup(Config& config, const string& name, InterconnectInterface* nocInterface) {
+    NocGroup* ngp = new NocGroup;
+    NocGroup& ng = *ngp;
+    string prefix = "sys.noc." + name + ".";
+
+    std::string child    = config.get<const char*>(prefix + "children"); 
+    std::string parent   = config.get<const char*>(prefix + "parent");   
+
+    uint32_t instances   = config.get<uint32_t>(prefix + "instances", 1); 
+    uint32_t banks       = config.get<uint32_t>(prefix + "interfaces", 1); 
+    ng.resize(instances);
+
+    for (vector<BookSimNetwork*>& mo : ng){
+        mo.resize(banks);
+    }
+
+    int nocId = 0;
+
+    for (uint32_t i = 0; i < instances; i++) { 
+        for (uint32_t j = 0; j < banks; j++) { 
+            string ss;
+            ss = name + "-" + to_string(i);
+            if (banks > 1) {
+                ss += + "b" + to_string(j);
+            }
+
+            BookSimNetwork * noc = new BookSimNetwork(ss.c_str() , nocId++, nocInterface, (int) zinfo->freqMHz);
+            ng[i][j] = noc;
+        }
+    }
+
+    return ngp;
+}
 #endif
+
+
+static void InitSystem(Config& config) {
     unordered_map<string, string> parentMap; //child -> parent
     unordered_map<string, vector<vector<string>>> childMap; //parent -> children (a parent may have multiple children)
 
@@ -445,7 +518,10 @@ static void InitSystem(Config& config) {
     // If a network file is specified, build a Network
     string networkFile = config.get<const char*>("sys.networkFile", "");
     zsimNetwork* network = (networkFile != "")? new zsimNetwork(networkFile.c_str()) : nullptr;
-
+#ifdef _WITH_BOOKSIM_
+    vector<const char*> nocGroupNames;
+    config.subgroups("sys.noc", nocGroupNames);
+#endif
     // Build the caches
     vector<const char*> cacheGroupNames;
     config.subgroups("sys.caches", cacheGroupNames);
@@ -454,6 +530,7 @@ static void InitSystem(Config& config) {
     for (const char* grp : cacheGroupNames) {
         string group(grp);
         if (group == "mem") panic("'mem' is an invalid cache group name");
+        if (group == "noc") panic("'noc' is an invalid cache group name");
         if (childMap.count(group)) panic("Duplicate cache group %s", (prefix + group).c_str());
 
         string children = config.get<const char*>(prefix + group + ".children", "");
@@ -466,16 +543,62 @@ static void InitSystem(Config& config) {
         }
     }
 
+#ifdef _WITH_BOOKSIM_
+    prefix = "sys.noc.";
+    for (const char* grp : nocGroupNames) {
+        string group(grp);
+        if (group == "mem") panic("'mem' is an invalid cache group name");
+        // if (childMap.count(group)) panic("Duplicate cache group %s", (prefix + group).c_str());
+        string children = config.get<const char*>(prefix + group + ".children", "");
+        childMap[group] = parseChildren(children); // l3
+        for (auto v : childMap[group]) for (auto child : v) {
+            if (parentMap.count(child)) {
+                panic("Cache group %s can have only one parent (%s and %s found)", child.c_str(), parentMap[child].c_str(), grp);
+            }
+            parentMap[child] = group;
+        }
+    }
+#endif
+
     // Check that children are valid (another cache)
     for (auto& it : parentMap) {
         bool found = false;
         for (auto& grp : cacheGroupNames) found |= it.first == grp;
+    #ifdef _WITH_BOOKSIM_
+        for (auto& grp : nocGroupNames) found |= it.first == grp;
+    #endif
         if (!found) panic("%s has invalid child %s", it.second.c_str(), it.first.c_str());
     }
 
+#ifdef _WITH_BOOKSIM_
+    vector<string> parentlessNocGroups;
+    for (auto& it : childMap) {
+        if (!parentMap.count(it.first)) {
+            if (std::find(nocGroupNames.begin(), nocGroupNames.end(), it.first) != nocGroupNames.end()){
+                parentlessNocGroups.push_back(it.first);
+            }
+        }
+    }
+    string llnoc = parentlessNocGroups[0];
+#endif
+
     // Get the (single) LLC
     vector<string> parentlessCacheGroups;
+
+#ifdef _WITH_BOOKSIM_
+    for (auto& it : childMap){
+        if(parentMap[it.first] == llnoc){
+            if(std::find(cacheGroupNames.begin(), cacheGroupNames.end(), it.first) != cacheGroupNames.end()){
+                parentlessCacheGroups.push_back(it.first);
+            }
+        }
+    }
+#else
     for (auto& it : childMap) if (!parentMap.count(it.first)) parentlessCacheGroups.push_back(it.first);
+#endif
+
+
+    // for (auto& it : childMap) if (!parentMap.count(it.first)) parentlessCacheGroups.push_back(it.first);
     if (parentlessCacheGroups.size() != 1) panic("Only one last-level cache allowed, found: %s", Str(parentlessCacheGroups).c_str());
     string llc = parentlessCacheGroups[0];
 
@@ -491,12 +614,40 @@ static void InitSystem(Config& config) {
         string group = fringe.front();
         fringe.pop_front();
         if (cMap.count(group)) panic("The cache 'tree' has a loop at %s", group.c_str());
-        cMap[group] = BuildCacheGroup(config, group, isTerminal(group));
+        if(std::find(cacheGroupNames.begin(), cacheGroupNames.end(), group) != cacheGroupNames.end()){
+            cMap[group] = BuildCacheGroup(config, group, isTerminal(group));
+        } 
+        // add everything in childVect at the end of fringe
         for (auto& childVec : childMap[group]) fringe.insert(fringe.end(), childVec.begin(), childVec.end());
     }
 
+#ifdef _WITH_BOOKSIM_
+    unordered_map<string, NocGroup*> nMap;
+    fringe.push_back(llnoc);
+    while (!fringe.empty()) {
+        string group = fringe.front();
+        fringe.pop_front();
+        if (nMap.count(group)) panic("The noc 'tree' has a loop at %s", group.c_str());
+        if(std::find(nocGroupNames.begin(), nocGroupNames.end(), group) != nocGroupNames.end()){
+            nMap[group] = BuildNocGroup(config, group, nocInterface);
+        } 
+        for (auto& childVec : childMap[group]) fringe.insert(fringe.end(), childVec.begin(), childVec.end());
+    }
+    
+    // queue a tick event ONLY for one noc which will be responsible for ticking booksim
+    (*nMap[llnoc])[0][0]->enqueueTickEvent();
+    (*nMap[llnoc])[0][0]->setLlnoc(true);
+    zinfo->contentionSim->setTopNoc((nMap[llnoc])[0][0][0]);
+#endif
+
+
     //Check single LLC
     if (cMap[llc]->size() != 1) panic("Last-level cache %s must have caches = 1, but %ld were specified", llc.c_str(), cMap[llc]->size());
+
+#ifdef _WITH_BOOKSIM_   
+    if (nMap[llnoc]->size() != 1) panic("Last-level noc %s must have nocs   = 1, but %ld were specified", llnoc.c_str(), nMap[llnoc]->size());
+#endif
+
 
     /* Since we have checked for no loops, parent is mandatory, and all parents are checked valid,
      * it follows that we have a fully connected tree finishing at the LLC.
@@ -509,6 +660,40 @@ static void InitSystem(Config& config) {
     g_vector<MemObject*> mems;
     mems.resize(memControllers);
 
+#ifdef _WITH_BOOKSIM_
+    // Read the memory controller coordinates from zsim's config file
+    bool connectedToNoc = config.exists("sys.mem.netcoord");
+    std::vector<coordinates<int>> memCoord;
+    std::string netCoord = "";
+    std::string coordStr;
+
+    if(connectedToNoc){
+        netCoord = config.get<const char*>("sys.mem.netcoord");
+        std::stringstream ss(netCoord);
+        while (std::getline(ss, coordStr, ' ')) {
+            // Create a stringstream from the extracted substring
+            std::stringstream coordSs(coordStr);
+
+            std::string xStr, yStr;
+            // Extract x and y values separated by commas from 'coordSs'
+            std::getline(coordSs, xStr, ',');
+            std::getline(coordSs, yStr, ',');
+
+            // Convert x and y values to integers
+            int x = std::stoi(xStr);
+            int y = std::stoi(yStr);
+
+            // Create a coordinates<int> object and add it to the vector
+            coordinates<int> coord = { x, y };
+            memCoord.push_back(coord);
+        }
+
+        if(memCoord.size() != memControllers){
+            panic("The number of MC coordinates provided in the configuration file, does not match that of the memory controllers\n");
+        }
+    }
+#endif
+
     for (uint32_t i = 0; i < memControllers; i++) {
         stringstream ss;
         ss << "mem-" << i;
@@ -516,6 +701,13 @@ static void InitSystem(Config& config) {
         //uint32_t domain = nextDomain(); //i*zinfo->numDomains/memControllers;
         uint32_t domain = i*zinfo->numDomains/memControllers;
         mems[i] = BuildMemoryController(config, zinfo->lineSize, zinfo->freqMHz, domain, name);
+#ifdef _WITH_BOOKSIM_ 
+        if(connectedToNoc){
+            networkCoordMap[ss.str()] = {memCoord[i]};
+            coordinates<int> coord =  networkCoordMap[mems[i]->getName()][0]; //TODO [0] is used for now because I only store one per vector
+            mems[i]->setCoord(coord);
+        }
+#endif
     }
 
     if (memControllers > 1) {
@@ -532,33 +724,59 @@ static void InitSystem(Config& config) {
 
     // mem to llc is a bit special, only one llc
     uint32_t childId = 0;
+    
+
+#ifdef _WITH_BOOKSIM_
+    // convert NocGroup in nMap to MemObject and set the parent of all 4 llc banks to be the noc
+    g_vector<MemObject*> llnocParentsVec;
+    NocGroup& llnocParent = *nMap[llnoc];
+    llnocParentsVec.insert(llnocParentsVec.end(), llnocParent[0].begin(), llnocParent[0].end()); 
+#endif
+
+    // llc to llnoc    
     for (BaseCache* llcBank : (*cMap[llc])[0]) {
+#ifdef _WITH_BOOKSIM_
+        llcBank->setParents(childId++, llnocParentsVec, network);
+        llcBank->connectToNoc = true;
+#else
         llcBank->setParents(childId++, mems, network);
+#endif
     }
 
-    // Rest of caches
-    for (const char* grp : cacheGroupNames) {
-        if (isTerminal(grp)) continue; //skip terminal caches
+#ifdef _WITH_BOOKSIM_
+    for (const char* grp : nocGroupNames) {
+        // in this case, parentsCaches contains the cache group we're now investigating.
+        NocGroup& parentCachesNoc = *nMap[grp];
+        uint32_t parents;
 
-        CacheGroup& parentCaches = *cMap[grp];
-        uint32_t parents = parentCaches.size();
+        if(grp == llnoc){
+            parentCachesNoc[0][0]->setParents(childId++, mems, network);
+            continue;
+        }
+
+        parents = parentCachesNoc.size();
         assert(parents);
 
         // Linearize concatenated / interleaved caches from childMap cacheGroups
         CacheGroup childCaches;
 
+        // for each vector in the childMap (noc0 -> {l2})
         for (auto childVec : childMap[grp]) {
             if (!childVec.size()) continue;
-            size_t vecSize = cMap[childVec[0]]->size();
-            for (string child : childVec) {
+            // vecSize hold the number of children (noc0 -> {l2} is actually 2 caches, so vecsize == 2)
+            size_t vecSize = cMap[childVec[0]]->size(); 
+            for (string child : childVec) { 
                 if (cMap[child]->size() != vecSize) {
                     panic("In interleaved group %s, %s has a different number of caches", Str(childVec).c_str(), child.c_str());
                 }
             }
-
+            
+            // rearrange the caches from cMap. For example cMap will contain {"l2"->{l2_0, l2_1}, "l1d"-> {l1d0, l1d1}}
+            // and I would want to rearrange them to {l2_0, l1d_0, l2_1, l1d_1} 
             CacheGroup interleavedGroup;
             for (uint32_t i = 0; i < vecSize; i++) {
                 for (uint32_t j = 0; j < childVec.size(); j++) {
+                    // return position of element i in vector
                     interleavedGroup.push_back(cMap[childVec[j]]->at(i));
                 }
             }
@@ -566,7 +784,160 @@ static void InitSystem(Config& config) {
             childCaches.insert(childCaches.end(), interleavedGroup.begin(), interleavedGroup.end());
         }
 
-        uint32_t children = childCaches.size();
+        uint32_t children;
+        children = childCaches.size();
+        assert(children);
+
+        uint32_t childrenPerParent = children/parents;
+        if (children % parents != 0) {
+            panic("%s has %d caches and %d children, they are non-divisible. "
+                  "Use multiple groups for non-homogeneous children per parent!", grp, parents, children);
+        }
+
+        for (uint32_t p = 0; p < parents; p++) {
+            // insert the cache we're currently processing in th parentsCaches vector to set it as parent of it's children later
+            g_vector<MemObject*> parentsVec;
+            parentsVec.insert(parentsVec.end(), parentCachesNoc[p].begin(), parentCachesNoc[p].end()); //BaseCache* to MemObject* is a safe cast
+
+            uint32_t childId = 0;
+            g_vector<BaseCache*> childrenVec;
+            for (uint32_t c = p*childrenPerParent; c < (p+1)*childrenPerParent; c++) {
+                for (BaseCache* bank : childCaches[c]) {
+                    bank->setParents(childId++, parentsVec, network);
+                    bank->connectToNoc = true;
+                    // add the children of the current cache we're processing to a vector
+                    // to use them with setChildren() later for that cache
+                    // for example, when grp = l2_0, parentsVect = l2_0 and childrenVec = {l1d_0, l1i_0}
+                    childrenVec.push_back(bank);
+                }
+            }
+
+            if (printHierarchy) {
+                vector<string> cacheNames;
+                std::transform(childrenVec.begin(), childrenVec.end(), std::back_inserter(cacheNames),
+                        [](BaseCache* c) -> string { string s = c->getName(); return s; });
+
+                string parentName = parentCachesNoc[p][0]->getName();
+                if (parentCachesNoc[p].size() > 1) {
+                    parentName += "..";
+                    parentName += parentCachesNoc[p][parentCachesNoc[p].size()-1]->getName();
+                }
+                info("Hierarchy: %s -> %s", Str(cacheNames).c_str(), parentName.c_str());
+            }
+
+            for (BookSimNetwork* bank : parentCachesNoc[p]) {
+                bank->setChildren(childrenVec, network);
+            }
+        }
+
+    }
+#else
+    for (BaseCache* llcBank : (*cMap[llc])[0]) {
+        llcBank->setParents(childId++, mems, network);
+    }
+#endif
+
+
+    // Rest of caches
+    bool isCache = true;
+    bool childIsCache = true;
+    for (const char* grp : cacheGroupNames) {
+        if (isTerminal(grp)) continue; //skip terminal caches
+
+#ifdef _WITH_BOOKSIM_
+        isCache =  (std::find(cacheGroupNames.begin(), cacheGroupNames.end(), grp) != cacheGroupNames.end());
+        auto grpchild = (childMap.find(grp))->second[0][0];
+        childIsCache = (std::find(cacheGroupNames.begin(), cacheGroupNames.end(), grpchild) != cacheGroupNames.end());
+#endif   
+
+        CacheGroup& parentCaches = *cMap[grp];
+
+#ifdef _WITH_BOOKSIM_
+        NocGroup& parentCachesNoc = !isCache ? *nMap[grp] : *nMap[llnoc]; //assign it to SOMETHING if grp is a cache.
+#endif
+
+        uint32_t parents;
+
+        if (isCache){
+            parents = parentCaches.size();
+        } 
+#ifdef _WITH_BOOKSIM_
+        else{
+            parents = parentCachesNoc.size();
+        }
+#endif       
+        
+        assert(parents);
+
+        // Linearize concatenated / interleaved caches from childMap cacheGroups
+        CacheGroup childCaches;
+
+#ifdef _WITH_BOOKSIM_
+        NocGroup childCachesNoc;
+#endif
+
+        for (auto childVec : childMap[grp]) {
+            if (!childVec.size()) continue;
+       
+            // vecSize holds the number of children (noc0 -> {l2} is actually 2 caches, so vecsize == 2)
+#ifdef _WITH_BOOKSIM_
+            size_t vecSize = childIsCache ? cMap[childVec[0]]->size() : nMap[childVec[0]]->size();
+#else
+            size_t vecSize = cMap[childVec[0]]->size();
+#endif
+
+#ifdef _WITH_BOOKSIM_
+            for (string child : childVec) { 
+                if (childIsCache && cMap[child]->size() != vecSize) {
+                    panic("In interleaved group %s, %s has a different number of caches", Str(childVec).c_str(), child.c_str());
+                }
+                else if (!childIsCache && nMap[child]->size() != vecSize) {
+                    panic("In interleaved group %s, %s has a different number of caches", Str(childVec).c_str(), child.c_str());
+                }
+            }
+#else
+            for (string child : childVec) { 
+                if (childIsCache && cMap[child]->size() != vecSize) {
+                    panic("In interleaved group %s, %s has a different number of caches", Str(childVec).c_str(), child.c_str());
+                }
+            }
+#endif
+
+            // rearrange the caches from cMap. For example cMap will contain {"l2"->{l2_0, l2_1}, "l1d"-> {l1d0, l1d1}}
+            // and I would want to rearrange them to {l2_0, l1d_0, l2_1, l1d_1} 
+            if(childIsCache){
+                CacheGroup interleavedGroup;
+                for (uint32_t i = 0; i < vecSize; i++) {
+                    for (uint32_t j = 0; j < childVec.size(); j++) {
+                        interleavedGroup.push_back(cMap[childVec[j]]->at(i));
+                    }
+                }
+
+                childCaches.insert(childCaches.end(), interleavedGroup.begin(), interleavedGroup.end());
+            }
+#ifdef _WITH_BOOKSIM_
+            else {
+                NocGroup interleavedGroupNoc;
+                for (uint32_t i = 0; i < vecSize; i++) {
+                    for (uint32_t j = 0; j < childVec.size(); j++) {
+                        interleavedGroupNoc.push_back(nMap[childVec[j]]->at(i));
+                    }
+                }
+
+                childCachesNoc.insert(childCachesNoc.end(), interleavedGroupNoc.begin(), interleavedGroupNoc.end());
+            }
+#endif
+        }
+
+        uint32_t children;
+        if(childIsCache){
+            children = childCaches.size();
+        } 
+        #ifdef _WITH_BOOKSIM_
+        else {
+            children = childCachesNoc.size();
+        }
+        #endif    
         assert(children);
 
         uint32_t childrenPerParent = children/parents;
@@ -581,28 +952,70 @@ static void InitSystem(Config& config) {
 
             uint32_t childId = 0;
             g_vector<BaseCache*> childrenVec;
-            for (uint32_t c = p*childrenPerParent; c < (p+1)*childrenPerParent; c++) {
-                for (BaseCache* bank : childCaches[c]) {
-                    bank->setParents(childId++, parentsVec, network);
-                    childrenVec.push_back(bank);
+            if(childIsCache){
+                for (uint32_t c = p*childrenPerParent; c < (p+1)*childrenPerParent; c++) {
+                    for (BaseCache* bank : childCaches[c]) {
+                        bank->setParents(childId++, parentsVec, network);
+                            // add the children of the current cache we're processing to a vector
+                            // to use them with setChildren() later for that cache
+                            // for example, when grp = l2_0, parentsVect = l2_0 and childrenVec = {l1d_0, l1i_0}
+                        childrenVec.push_back(bank);
+                    }
+                }
+
+                if (printHierarchy) {
+                    vector<string> cacheNames;
+                    std::transform(childrenVec.begin(), childrenVec.end(), std::back_inserter(cacheNames),
+                            [](BaseCache* c) -> string { string s = c->getName(); return s; });
+
+                    string parentName = parentCaches[p][0]->getName();
+                    if (parentCaches[p].size() > 1) {
+                        parentName += "..";
+                        parentName += parentCaches[p][parentCaches[p].size()-1]->getName();
+                    }
+                    info("Hierarchy: %s -> %s", Str(cacheNames).c_str(), parentName.c_str());
+                }
+
+                for (BaseCache* bank : parentCaches[p]) {
+                    bank->setChildren(childrenVec, network);
                 }
             }
+        #ifdef _WITH_BOOKSIM_
+            else{
+                g_vector<BaseCache*> childrenVec;
+                for (uint32_t n =0; n < parentCaches[0].size(); n++) {
+                    BookSimNetwork* net = childCachesNoc[0][n]; 
+                    g_vector<MemObject*> nocParVec;
+                    nocParVec.insert(nocParVec.begin(), parentsVec[n]); 
 
-            if (printHierarchy) {
-                vector<string> cacheNames;
-                std::transform(childrenVec.begin(), childrenVec.end(), std::back_inserter(cacheNames),
-                        [](BaseCache* c) -> string { string s = c->getName(); return s; });
-
-                string parentName = parentCaches[p][0]->getName();
-                if (parentCaches[p].size() > 1) {
-                    parentName += "..";
-                    parentName += parentCaches[p][parentCaches[p].size()-1]->getName();
-                }
-                info("Hierarchy: %s -> %s", Str(cacheNames).c_str(), parentName.c_str());
+                    net->setParents(childId++, nocParVec, network);
+                    childrenVec.push_back(net);        
+                }  
+                
+                // set only one noc children to each memory (l3) bank.
+                // If there are for example 4 l3 banks, there will also be 4 noc instances,
+                // so l3b0 child is noc0, l3b1 is noc1 etc.
+                // When I'm only dealing with caches, each grp get assigned to all the previous level caches as children.
+                int nocBank = 0;
+                for (BaseCache* bank : parentCaches[p]) {
+                    g_vector<BaseCache*> nocChildVec;
+                    nocChildVec.insert(nocChildVec.begin(), childrenVec[nocBank++]); 
+                    bank->setChildren(nocChildVec, network);
+                    bank->incrNumGrandChildren(nocChildVec[0]->getNumChildren());
+                }                
             }
+        #endif
+        }
+    }
 
-            for (BaseCache* bank : parentCaches[p]) {
-                bank->setChildren(childrenVec, network);
+    // set the network coordinates for the caches that are connected to the NoC
+    for(auto group : cMap){
+        for(auto cacheType : group.second[0]){
+            for(auto cache : cacheType){
+                if(cache->connectToNoc){
+                    coordinates<int> coord =  networkCoordMap[cache->getName()][0]; //TODO [0] is used for now because I only store one per vector
+                    cache->setCoord(coord);
+                }
             }
         }
     }
@@ -772,6 +1185,20 @@ static void InitSystem(Config& config) {
         zinfo->rootStat->append(groupStat);
     }
 
+#ifdef _WITH_BOOKSIM_
+    //Init stats: noc
+    for (const char* group : nocGroupNames) {
+        AggregateStat* groupStat = new AggregateStat(true);
+        groupStat->init(gm_strdup(group), "NoC stats");
+        for (vector<BookSimNetwork*>& banks : *nMap[group]){
+           for (BookSimNetwork* bank : banks){
+             bank->initStats(groupStat);
+           }
+        }
+        zinfo->rootStat->append(groupStat);
+    }
+#endif
+
     //Initialize event recorders
     //for (uint32_t i = 0; i < zinfo->numCores; i++) eventRecorders[i] = new EventRecorder();
 
@@ -873,6 +1300,15 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     zinfo->statsBackends = new g_vector<StatsBackend*>();
 
     Config config(configFile);
+
+#ifdef _WITH_BOOKSIM_
+    const char* nocInitFile = config.get<const char*>("sys.noc.nocSystemIni");
+    nocInterface = InterconnectInterface::New(nocInitFile);
+    
+    nocInterface->CreateInterconnect();
+    nocInterface->Init();
+#endif
+
 
     //Debugging
     //NOTE: This should be as early as possible, so that we can attach to the debugger before initialization.

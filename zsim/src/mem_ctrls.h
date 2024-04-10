@@ -43,6 +43,10 @@ class SimpleMemory : public MemObject {
         const char* getName() {return name.c_str();}
 
         SimpleMemory(uint32_t _latency, g_string& _name) : name(_name), latency(_latency) {}
+
+        void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network){assert(0);}
+    void setCoord(const coordinates<int> coord) {panic("Should never be called");};
+    coordinates<int> getCoord(){panic("Should never be called");};
 };
 
 
@@ -91,8 +95,11 @@ class MD1Memory : public MemObject {
         //uint32_t access(Address lineAddr, AccessType type, uint32_t childId, MESIState* state /*both input and output*/, MESIState initialState, lock_t* childLock);
         uint64_t access(MemReq& req);
 
-        const char* getName() {return name.c_str();}
+        void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network){assert(0);}
+        void setCoord(const coordinates<int> coord) {panic("Should never be called");};
+        coordinates<int> getCoord(){panic("Should never be called");};
 
+        const char* getName() {return name.c_str();}
     private:
         void updateLatency();
 };

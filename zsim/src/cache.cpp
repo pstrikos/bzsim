@@ -31,19 +31,33 @@
 #include "zsim.h"
 
 Cache::Cache(uint32_t _numLines, CC* _cc, CacheArray* _array, ReplPolicy* _rp, uint32_t _accLat, uint32_t _invLat, const g_string& _name)
-    : cc(_cc), array(_array), rp(_rp), numLines(_numLines), accLat(_accLat), invLat(_invLat), name(_name) {}
+    : cc(_cc), array(_array), rp(_rp), numLines(_numLines), accLat(_accLat), invLat(_invLat), name(_name), numParents(0), numChildren(0) {}
 
 const char* Cache::getName() {
     return name.c_str();
 }
 
 void Cache::setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) {
+    numParents = parents.size();
     cc->setParents(childId, parents, network);
 }
 
 void Cache::setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
+    numChildren = children.size();
     cc->setChildren(children, network);
 }
+
+void Cache::setGrandChildren(const g_vector<BaseCache*>& grandChildren) {
+    cc->setGrandChildren(grandChildren);
+}
+
+g_vector<MemObject*> Cache::getParents() {
+    return cc->getParents();
+};
+
+void Cache::incrNumGrandChildren(const int numGrandChildren){
+    cc->incrNumGrandChildren(numGrandChildren);
+};
 
 void Cache::initStats(AggregateStat* parentStat) {
     AggregateStat* cacheStat = new AggregateStat();

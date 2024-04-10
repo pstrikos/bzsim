@@ -102,6 +102,7 @@ GlobSimInfo* zinfo;
 uint32_t procIdx;
 uint32_t lineBits; //process-local for performance, but logically global
 Address procMask;
+std::unordered_map<std::string, vector<coordinates<int>>> networkCoordMap;
 
 static ProcessTreeNode* procTreeNode;
 

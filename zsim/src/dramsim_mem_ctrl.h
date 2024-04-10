@@ -51,6 +51,10 @@ class DRAMSimMemory : public MemObject { //one DRAMSim controller
 
         uint64_t curCycle; //processor cycle, used in callbacks
 
+
+        // NoC router address
+        coordinates<int> coord;
+
         // R/W stats
         PAD();
         Counter profReads;
@@ -74,6 +78,10 @@ class DRAMSimMemory : public MemObject { //one DRAMSim controller
         uint32_t tick(uint64_t cycle);
         void enqueue(DRAMSimAccEvent* ev, uint64_t cycle);
 
+        void setCoord(const coordinates<int> _coord) {coord = _coord;};
+        coordinates<int> getCoord(){return coord;};
+    
+        void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network){}
     private:
         void DRAM_read_return_cb(uint32_t id, uint64_t addr, uint64_t returnCycle);
         void DRAM_write_return_cb(uint32_t id, uint64_t addr, uint64_t returnCycle);
@@ -86,6 +94,7 @@ class SplitAddrMemory : public MemObject {
     private:
         const g_vector<MemObject*> mems;
         const g_string name;
+        g_vector<MemObject*> parents;
     public:
         SplitAddrMemory(const g_vector<MemObject*>& _mems, const char* _name) : mems(_mems), name(_name) {}
 
@@ -106,6 +115,19 @@ class SplitAddrMemory : public MemObject {
         void initStats(AggregateStat* parentStat) {
             for (auto mem : mems) mem->initStats(parentStat);
         }
+
+         void setParents(uint32_t childId, const g_vector<MemObject*>& _parents, zsimNetwork* network){
+            parents.resize(_parents.size());
+            // parentRTTs.resize(_parents.size());
+            for (uint32_t p = 0; p < _parents.size(); p++) {
+                parents[p] = _parents[p];
+                // parentRTTs[p] = (network)? network->getRTT(name, parents[p]->getName()) : 0;
+            }
+        }
+
+
+        void setCoord(const coordinates<int> _coord) {panic("Should never be called");};
+        coordinates<int> getCoord(){panic("Should never be called");};
 };
 
 #endif  // DRAMSIM_MEM_CTRL_H_

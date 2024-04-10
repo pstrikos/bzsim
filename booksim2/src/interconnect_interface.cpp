@@ -71,6 +71,8 @@ InterconnectInterface::~InterconnectInterface()
 
 void InterconnectInterface::CreateInterconnect()
 {
+  curCycle = 0;
+
   InitializeRoutingMap(*_icnt_config);
 
   gPrintActivity = (_icnt_config->GetInt("print_activity") > 0);
@@ -116,9 +118,16 @@ void InterconnectInterface::CreateInterconnect()
   } else {
     _input_buffer_capacity = 9;
   }
+
+  nocFrequencyMHz = _icnt_config->GetInt("noc_frequency_mhz");
+
   _vcs = _icnt_config->GetInt("num_vcs");
-  
+
   _CreateBuffer();
+
+  stepsBeforeUpdateStats = _traffic_manager->GetStepsBeforeUpdateStats();
+  stepsCnt = 0;
+
 }
 
 void InterconnectInterface::Init()
@@ -130,15 +139,15 @@ void InterconnectInterface::ManuallyGeneratePacket(int source, int dest, int siz
   _traffic_manager->_ManuallyGeneratePacket(source,  dest,  size,  ctime, addr);
 }
 
-void InterconnectInterface::DisplayStats() const
+void InterconnectInterface::DisplayStats()
 {
   _traffic_manager->UpdateStats();
-  _traffic_manager->DisplayStats();
+//   _traffic_manager->DisplayStats();
 }
 
 int InterconnectInterface::GetIcntTime() const
 {
-  return _traffic_manager->getTime();
+  return _traffic_manager->_time;
 }
 
 void InterconnectInterface::_CreateBuffer()
@@ -163,11 +172,23 @@ void InterconnectInterface::_CreateBuffer()
   }
 }
 
+int cntprints = 0;
 void InterconnectInterface::Step(){
   _traffic_manager->_Step();
+  if (++stepsCnt == stepsBeforeUpdateStats){
+    DisplayStats();
+    stepsCnt = 0;
+  }
 }
 
 void InterconnectInterface::RegisterCallbacksInterface(Callback_t *readDone, Callback_t *writeDone){
-  ReturnReadData = readDone;
-  WriteDataDone = writeDone;
+  // _traffic_manager->RegisterCallbacks(readDone, writeDone); 
+  ReturnReadData.push_back(readDone);
+	WriteDataDone = writeDone;
+}
+
+void InterconnectInterface::CallbackEverything(uint64_t addr){
+  for (auto& callback : ReturnReadData) {
+    callback->operator()(0, addr, 1);
+  }
 }

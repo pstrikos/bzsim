@@ -79,6 +79,7 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     _routers = _net[0]->NumRouters( );
 
     _vcs = config.GetInt("num_vcs");
+    nocFrequencyMHz = config.GetInt("noc_frequency_mhz");
     _subnets = config.GetInt("subnets");
  
     _subnet.resize(Flit::NUM_FLIT_TYPES);
@@ -468,6 +469,9 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
 #endif
 
     // ============ Statistics ============ 
+
+    stepsBeforeUpdateStats = config.GetInt( "step_cnt_update" );
+
 
     _plat_stats.resize(_classes);
     _overall_min_plat.resize(_classes, 0.0);
@@ -890,7 +894,7 @@ void TrafficManager::_Step( )
                 // Send back its latency to zsim
                 if (f->tail == true){
                     auto it = _in_flight_req_address.find(f->pid);
-                    (*parent->ReturnReadData)(0, it->second, 1);
+                    parent->CallbackEverything(it->second);
                     _in_flight_req_address.erase(it);  
                 }
 
@@ -2401,7 +2405,9 @@ void TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, int
     // In running stage, record is always one and the packets are also
     // inserted in the _measured_in_flight_flits vector as well.
 
-
+    if (ctime < 0){
+        ctime = _time;
+    }
     int result = _injection_process[0]->test(source) ? 1 : 0;
     _requestsOutstanding[source]++;
 
@@ -2421,7 +2427,7 @@ void TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, int
     assert(_cur_pid);
     bool record = true; 
     // TODO: watch value should be changed back
-    bool watch = 1; // gWatchOut && (_packets_to_watch.count(pid) > 0);
+    bool watch = gWatchOut && (_packets_to_watch.count(pid) > 0);
 
     int subnetwork = ((packet_type == Flit::ANY_TYPE) ? 
                       RandomInt(_subnets-1) :

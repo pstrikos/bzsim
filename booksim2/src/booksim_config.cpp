@@ -40,6 +40,9 @@ BookSimConfig::BookSimConfig( )
   //========================================================
   // BookSimNetwork options
   //========================================================
+ 
+  // Network frequency
+  _int_map["noc_frequency_mhz"] = 1000;
 
   // Channel length listing file
   AddStrField( "channel_file", "" ) ;
@@ -79,6 +82,8 @@ BookSimConfig::BookSimConfig( )
   //========================================================
 
   //==== General options ===================================
+
+  _int_map["step_cnt_update"] = 1000;
 
   AddStrField( "router", "iq" ); 
 

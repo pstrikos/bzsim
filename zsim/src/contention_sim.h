@@ -39,6 +39,11 @@
 #include "profile_stats.h"
 #include "stats.h"
 
+#ifdef _WITH_BOOKSIM_
+#include "booksim_net_ctrl.h"
+#endif
+
+
 //Set to 1 to produce stats of how many event crossings are generated and run. Useful for debugging, but adds overhead.
 #define PROFILE_CROSSINGS 0
 //#define PROFILE_CROSSINGS 1
@@ -126,7 +131,10 @@ class ContentionSim : public GlobAlloc {
         lock_t postMortemLock;
 
     public:
-        ContentionSim(uint32_t _numDomains, uint32_t _numSimThreads);
+#ifdef _WITH_BOOKSIM_
+        BookSimNetwork* topNoc;
+#endif
+       ContentionSim(uint32_t _numDomains, uint32_t _numSimThreads);
 
         void initStats(AggregateStat* parentStat);
 
@@ -140,6 +148,10 @@ class ContentionSim : public GlobAlloc {
 
         void finish();
 
+#ifdef _WITH_BOOKSIM_
+        void setTopNoc(BookSimNetwork* _topNoc){topNoc = _topNoc;}
+#endif
+    
         uint64_t getLastLimit() {return lastLimit;}
 
         uint64_t getCurCycle(uint32_t domain) {
