@@ -1,0 +1,15 @@
+pin/*
+zsim/build/*
+
+
+*~
+\#*#
+._*
+.Apple*
+.DS_Store
+
+*.[oa]
+*.os
+*.so
+*.d
+*.log
