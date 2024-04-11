@@ -29,4 +29,6 @@ dependencies: gcc, pin, scons, libconfig, libhdf5, libelfg0
 
 6. Compile zsim: `(cd zsim && scons)`
 
-7. Launch a test run: `./build/opt/zsim tests/simple.cfg`
+7. Launch a test run: 
+    `cd zsim/'
+    `./build/opt/zsim tests/bzsimsimple.cfg`
