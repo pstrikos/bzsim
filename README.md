@@ -22,6 +22,8 @@ dependencies: gcc, pin, scons, libconfig, libhdf5, libelfg0
     `HDF5PATH`
     `BOOKSIMPATH`
 
+   Optionally, set `DRAMSIMPATH` to integrate DRASim2.
+
 4. Add the booksim library to the dynamic shared library path:
     `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$BOOKSIMPATH/src/`
 
@@ -29,4 +31,10 @@ dependencies: gcc, pin, scons, libconfig, libhdf5, libelfg0
 
 6. Compile zsim: `(cd zsim && scons)`
 
-7. Launch a test run: `./build/opt/zsim tests/simple.cfg`
+7. Launch a test run: 
+    `cd zsim/'
+    `./build/opt/zsim tests/simple.cfg'
+    
+    Alternatively, to simulate using DRAMSim2: 
+    `./build/opt/zsim tests/bzsimsimple.cfg`
+>>>>>>> 98520bd (Implemented booksimNetwork locks for accesses and invalidations to enable parallel execution)

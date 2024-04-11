@@ -16,10 +16,9 @@ class BookSimAccEvent : public TimingEvent {
         doubleCoordinates<int> coord;
 
     public:
-        std::string mytype(){return "booksimevent";};
         uint64_t sCycle;
 
-        BookSimAccEvent(BookSimNetwork* _noc, bool _write, Address _addr, int32_t domain, bool isInval = false) :  TimingEvent(0, 0, domain, isInval), noc(_noc), write(_write), addr(_addr) {}
+        explicit BookSimAccEvent(BookSimNetwork* _noc, bool _write, Address _addr, int32_t domain, bool isInval = false) :  TimingEvent(0, 0, domain, isInval), noc(_noc), write(_write), addr(_addr) {}
 
         bool isWrite() const {
             return write;
@@ -49,13 +48,16 @@ BookSimNetwork::BookSimNetwork(const char* _name, int _id, InterconnectInterface
     cpuFreq = _cpuFreq;
     nocFreq = nocIf->getNocFrequency();
     nocSpeedup = nocFreq/cpuFreq; // int on purpose
+    hopDelay = nocIf->getHopDelay();
+    packetSize = nocIf->getPacketSize();
     name = _name;
     id = _id;
     numChildren = 0;
     meshDim = sqrt(nocIf->getNodes());
     isLlnoc = false;
 
-
+    futex_init(&netLockAcc);
+    futex_init(&netLockInv);
 
     booksim::TransactionCompleteCB *read_cb = new booksim::Callback<BookSimNetwork, void, unsigned, uint64_t, uint64_t>(this, &BookSimNetwork::noc_read_return_cb);
     booksim::TransactionCompleteCB *write_cb = new booksim::Callback<BookSimNetwork, void, unsigned, uint64_t, uint64_t>(this, &BookSimNetwork::noc_write_return_cb);
@@ -81,8 +83,30 @@ void BookSimNetwork::initStats(AggregateStat* parentStat) {
     profTotalWrLat.init("wrlat", "Total latency experienced by write requests"); nocStats->append(&profTotalWrLat);
     parentStat->append(nocStats);
 }
-int namecnt = 0;
+
+void BookSimNetwork::startAccess(MemReq& req){
+    if (req.childLock)
+    {
+        futex_unlock(req.childLock);
+    }
+
+    futex_lock(&netLockAcc);
+    futex_lock(&netLockInv);
+}
+
+void BookSimNetwork::endAccess(MemReq& req){
+    if (req.childLock)
+    {
+        futex_lock(req.childLock);
+    }
+    futex_unlock(&netLockInv);
+    futex_unlock(&netLockAcc);
+}
+
 uint64_t BookSimNetwork::access(MemReq& req) {
+        
+        startAccess(req);
+    
         // The request (req) that is passed, contains an 'address'.
         // Here, we will get that address and do the following:
         // 1) translate it in network address
@@ -118,8 +142,12 @@ uint64_t BookSimNetwork::access(MemReq& req) {
         accReq.cycle = respCycle;
         accReq.nocReq = true;
         accReq.nocChildId = req.srcId;
+        accReq.childLock = &netLockInv;
 
+        assert(netLockAcc);
         uint64_t parLat = parents[0]->access(accReq);
+        assert(netLockAcc);
+
         uint32_t nextLevelLat = parLat - respCycle;
         
         // this means cache skipped the access
@@ -127,13 +155,14 @@ uint64_t BookSimNetwork::access(MemReq& req) {
             if(trInv.isValid()){
                 evRec->pushRecord(trInv);
             }
+            endAccess(req);
             return req.cycle;
         }
 
         TimingRecord tr;
         tr = evRec->popRecord();
     
-        Address addr = req.lineAddr << (lineBits + 1);
+        Address addr = req.lineAddr;
         bool isWrite = (type == PUTX);
 
 
@@ -231,6 +260,8 @@ uint64_t BookSimNetwork::access(MemReq& req) {
         }
 
         respCycle += zll; // count again zll for the trip back
+        endAccess(req);
+
         return respCycle;
 }
 
@@ -278,6 +309,8 @@ void BookSimNetwork::setChildren(const g_vector<BaseCache*>& _children, zsimNetw
         };
 
 uint64_t BookSimNetwork::invalidate(const InvReq& req){
+
+    futex_lock(&netLockInv);
     uint64_t respCycle = req.cycle;
 
     coordinates<int> src = parents[0]->getCoord();
@@ -298,7 +331,7 @@ uint64_t BookSimNetwork::invalidate(const InvReq& req){
 
     respCycle += zll;
 
-    InvType type = req.type;
+    // InvType type = req.type;
     InvReq request = req;
     request.cycle = respCycle;
     request.nocReq = false;
@@ -369,6 +402,7 @@ uint64_t BookSimNetwork::invalidate(const InvReq& req){
     }
 
     evRec->pushRecord(noctr);
+    futex_unlock(&netLockInv); 
     return respCycle;
 
 }
@@ -385,8 +419,7 @@ void BookSimNetwork::noc_read_return_cb(uint32_t id, uint64_t pid, uint64_t late
     BookSimAccEvent* ev = it->second;  
     uint32_t lat = curCycle - ev->sCycle;
     
-    assert(ev->getZll() <= lat);
-    doubleCoordinates<int> coord = ev->getCoord();
+    assert((uint32_t) ev->getZll() <= lat);
 
     if (ev->isWrite()) {
         profWrites.inc();

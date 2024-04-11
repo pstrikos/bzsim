@@ -32,8 +32,8 @@ class BookSimNetwork : public BaseCache {
 
         uint64_t nocCurCycle; //processor cycle, used in callbacks
 
-        int hopLatency = 3;
-        int flitsPerPacket = 5;
+        // int hopLatency = 3;
+        // int flitsPerPacket = 5;
         int meshDim;       
 
         int nocFreq, cpuFreq, nocSpeedup;
@@ -41,12 +41,14 @@ class BookSimNetwork : public BaseCache {
 
         int packetSize;
         int hopDelay;
-        
+
         uint32_t zsimPhaseLength;
         uint32_t namecnt; 
 
         // R/W stats
         PAD();
+        lock_t  netLockAcc;
+        lock_t  netLockInv;
         Counter profReads;
         Counter profWrites;
         Counter localReqs, remoteReqs;
@@ -106,6 +108,9 @@ class BookSimNetwork : public BaseCache {
         coordinates<int> getCoord(){panic("Should never be called");};
 
     private:
+        void startAccess(MemReq& req);
+        void endAccess(MemReq& req);
+
         void noc_read_return_cb(uint32_t id, uint64_t pid, uint64_t latency);
         void noc_write_return_cb(uint32_t id, uint64_t pid, uint64_t latency);
 };
