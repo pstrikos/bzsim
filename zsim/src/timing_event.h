@@ -71,8 +71,6 @@ class TimingEvent {
     public:
         std::string name;
         TimingEvent* next; //used by PrioQueue --- PRIVATE
-        void setAddr(Address a){addr = a;}
-        inline uint32_t getAddr() const {return addr;}
     private:
         EventState state;
         uint64_t cycle;
@@ -87,10 +85,12 @@ class TimingEvent {
         uint32_t numParents;
         uint32_t preDelay;
         uint32_t postDelay; //we could get by with one delay, but pre/post makes it easier to code
+        bool isInval;
+        int zll;
 
     public:
-        TimingEvent(uint32_t _preDelay, uint32_t _postDelay, int32_t _domain = -1) : next(nullptr), state(EV_NONE), cycle(0), minStartCycle(-1L), child(nullptr),
-                    domain(_domain), numChildren(0), numParents(0), preDelay(_preDelay), postDelay(_postDelay) {}
+        TimingEvent(uint32_t _preDelay, uint32_t _postDelay, int32_t _domain = -1, bool _isInval = false) : next(nullptr), state(EV_NONE), cycle(0), minStartCycle(-1L), child(nullptr),
+                     domain(_domain), numChildren(0), numParents(0), preDelay(_preDelay), postDelay(_postDelay), isInval(_isInval), zll(0) {}
         explicit TimingEvent(int32_t _domain = -1) : next(nullptr), state(EV_NONE), minStartCycle(-1L), child(nullptr),
                     domain(_domain), numChildren(0), numParents(0), preDelay(0), postDelay(0) {} //no delegating constructors until gcc 4.7...
 
@@ -99,13 +99,20 @@ class TimingEvent {
         inline uint32_t getNumParents() const {return numParents;}
         inline uint32_t getPreDelay() const {return preDelay;}
         inline uint32_t getPostDelay() const {return postDelay;}
+        void setAddr(Address a){addr = a;}
+        inline uint32_t getAddr() const {return addr;}
         inline TimingEvent* getChild() {return child;}
+        inline TimingEvent* getSelectedChild(const int c) {return children->events[c];}
+        inline int          getZll() const {return zll;}
+        inline bool         getIsInval(){return isInval;}
+        void setIsInval(bool _isInval){isInval = _isInval;}
 
         inline void setPreDelay(uint32_t d) {preDelay = d;}
         inline void setPostDelay(uint32_t d) {postDelay = d;}
 
         inline uint64_t getMinStartCycle() const {return minStartCycle;}
         inline void setMinStartCycle(uint64_t c) {minStartCycle = c;}
+        inline void setZll(int z) {zll = z;}
 
         TimingEvent* addChild(TimingEvent* childEv, EventRecorder* evRec) {
             assert_msg(state == EV_NONE || state == EV_QUEUED, "adding child in invalid state %d %s -> %s", state, typeid(*this).name(), typeid(*childEv).name()); //either not scheduled or not executed yet
@@ -139,6 +146,24 @@ class TimingEvent {
 
             childEv->numParents++;
             return res; //useful for chaining
+        }
+
+        TimingEvent* getChildLeftDescendant() {
+            TimingEvent* lastEv = this;
+            assert(lastEv);
+            while(lastEv->getNumChildren() > 0){
+                if(lastEv->getNumChildren() == 1){
+                    lastEv = lastEv->getChild();
+                } else {
+                    lastEv = lastEv->getSelectedChild(0);
+                }
+            }
+            return lastEv;
+        }
+
+        uint32_t getChildLeftDescendantFinishTime() {
+            TimingEvent* lastEv = getChildLeftDescendant();
+            return lastEv->minStartCycle + lastEv->zll + lastEv->preDelay + lastEv->postDelay;
         }
 
         TimingEvent* addChild(TimingEvent* childEv, EventRecorder& evRec) {
@@ -234,6 +259,18 @@ class TimingEvent {
 
         //Describe yourself, useful for debugging
         virtual std::string str() { std::string res; return res; }
+
+        friend std::ostream& operator<<(std::ostream& os, const TimingEvent& te){
+            os << "{ privCycle = " << te.privCycle << ", name = " << te.name << ", next = " << te.next <<
+            ", addr = " << te.addr << ", state = " << te.state << ", cycle = " << te.cycle << 
+            ", minStartCycle = " << te.minStartCycle << " { child = " << te.child << 
+            ", children = " << te.children << " } , domain = " << te.domain << ", numChildren = " << te.numChildren <<
+            ", numParents = " << te.numParents << ", preDelay = " << te.preDelay << ", postDelay = " << te.postDelay <<
+            ", isInval = " << te.isInval << " }" 
+            << " zll = " << te.zll << std::endl;
+
+            return os;
+        }
 
     private:
         void* operator new (size_t);

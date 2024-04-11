@@ -1431,6 +1431,12 @@ static EXCEPT_HANDLING_RESULT InternalExceptionHandler(THREADID tid, EXCEPTION_I
 /* ===================================================================== */
 
 int main(int argc, char *argv[]) {
+    #ifdef _ATTACH_GDB_
+        bool fl = false;
+        while(!fl){
+        } 
+    #endif
+    
     PIN_InitSymbols();
     if (PIN_Init(argc, argv)) return Usage();
 

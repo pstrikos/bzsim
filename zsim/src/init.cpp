@@ -407,8 +407,9 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
 
     // Read the noc coordinates of the current cache level (if they exist) from zsim's configuration file,
     // and add them in networkCoordMap that will later be used to set each caches coordinates
-    bool connectedToNoc = config.exists(prefix + "netcoord");
-#ifdef _WITH_BOOKSIM_   
+    
+#ifdef _WITH_BOOKSIM_  
+    bool connectedToNoc = config.exists(prefix + "netcoord"); 
     std::string netCoord = "";
     std::vector<coordinates<int>> cacheCoord;
     if(connectedToNoc){
@@ -454,9 +455,11 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
             g_string bankName(ss.str().c_str());
             uint32_t domain = (i*banks + j)*zinfo->numDomains/(caches*banks); //(banks > 1)? nextDomain() : (i*banks + j)*zinfo->numDomains/(caches*banks);
             cg[i][j] = BuildCacheBank(config, prefix, bankName, bankSize, isTerminal, domain);
+#ifdef _WITH_BOOKSIM_
             if(connectedToNoc){
                 networkCoordMap[ss.str()] = {cacheCoord[i+j]}; 
             }
+#endif
         }
     }
 

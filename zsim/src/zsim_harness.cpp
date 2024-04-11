@@ -383,6 +383,11 @@ int main(int argc, char *argv[]) {
         deadlockDetection = conf.get<bool>("sim.deadlockDetection", true);
     }
 
+#ifdef _ATTACH_GDB_
+    deadlockDetection = false;
+#endif
+
+
     info("Deadlock detection %s", deadlockDetection? "ON" : "OFF");
 
     aslr = conf.get<bool>("sim.aslr", false);

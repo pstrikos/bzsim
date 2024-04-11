@@ -47,6 +47,19 @@ void Cache::setChildren(const g_vector<BaseCache*>& children, zsimNetwork* netwo
     cc->setChildren(children, network);
 }
 
+void Cache::addChild(BaseCache* child, zsimNetwork* network) {
+     cc->addChild(child, network);
+}
+
+void Cache::addChildren(const g_vector<BaseCache*>& children, zsimNetwork* network){
+    cc->addChildren(children, network);
+}
+
+uint32_t Cache::getChildrenNum(){
+    return cc->getChildrenNum();
+}
+
+
 void Cache::setGrandChildren(const g_vector<BaseCache*>& grandChildren) {
     cc->setGrandChildren(grandChildren);
 }
@@ -73,6 +86,10 @@ void Cache::initCacheStats(AggregateStat* cacheStat) {
 }
 
 uint64_t Cache::access(MemReq& req) {
+    if(this->connectToNoc){
+        req.nocCoord = this->coord;
+    }
+
     uint64_t respCycle = req.cycle;
     bool skipAccess = cc->startAccess(req); //may need to skip access due to races (NOTE: may change req.type!)
     if (likely(!skipAccess)) {
@@ -111,6 +128,9 @@ uint64_t Cache::access(MemReq& req) {
                 wbAcc.endEvent = nullptr;
                 evRec->pushRecord(wbAcc);
             } else {
+                // this means that initially I had 2 events in the recorders.
+                // One was poped in wbAcc and on in acc.
+                // I will now connect them and put it back.
                 // Connect both events
                 TimingRecord acc = evRec->popRecord();
                 assert(wbAcc.reqCycle >= req.cycle);
@@ -121,11 +141,12 @@ uint64_t Cache::access(MemReq& req) {
                 startEv->setMinStartCycle(req.cycle);
                 dWbEv->setMinStartCycle(req.cycle);
                 dAccEv->setMinStartCycle(req.cycle);
-                startEv->addChild(dWbEv, evRec)->addChild(wbAcc.startEvent, evRec);
                 startEv->addChild(dAccEv, evRec)->addChild(acc.startEvent, evRec);
-
+                startEv->addChild(dWbEv, evRec)->addChild(wbAcc.startEvent, evRec);
+                    
                 acc.reqCycle = req.cycle;
                 acc.startEvent = startEv;
+                acc.endEvent   = startEv; // CHANGE_PANOS
                 // endEvent / endCycle stay the same; wbAcc's endEvent not connected
                 evRec->pushRecord(acc);
             }

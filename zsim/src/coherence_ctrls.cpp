@@ -26,6 +26,9 @@
 #include "coherence_ctrls.h"
 #include "cache.h"
 #include "network.h"
+#include "zsim.h"
+#include "event_recorder.h"
+#include "timing_event.h"
 
 /* Do a simple XOR block hash on address to determine its bank. Hacky for now,
  * should probably have a class that deals with this with a real hash function
@@ -56,7 +59,7 @@ g_vector<MemObject*> MESIBottomCC::getParents(){
     return parents;
 }
 
-uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle, uint32_t srcId) {
+uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle, uint32_t srcId, coordinates<int> nocCoord){
     MESIState* state = &array[lineId];
     if (lowerLevelWriteback) {
         //If this happens, when tcc issued the invalidations, it got a writeback. This means we have to do a PUTX, i.e. we have to transition to M if we are in E
@@ -71,12 +74,14 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
         case E:
             {
                 MemReq req = {wbLineAddr, PUTS, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/};
+                req.nocCoord = nocCoord;
                 respCycle = parents[getParentId(wbLineAddr)]->access(req);
             }
             break;
         case M:
             {
                 MemReq req = {wbLineAddr, PUTX, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/};
+                req.nocCoord = nocCoord;
                 respCycle = parents[getParentId(wbLineAddr)]->access(req);
             }
             break;
@@ -87,7 +92,7 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
     return respCycle;
 }
 
-uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle, uint32_t srcId, uint32_t flags) {
+uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle, uint32_t srcId, uint32_t flags, bool nocRequest, coordinates<int> nocCoord)  {
     uint64_t respCycle = cycle;
     MESIState* state = &array[lineId];
     switch (type) {
@@ -108,6 +113,8 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
             if (*state == I) {
                 uint32_t parentId = getParentId(lineAddr);
                 MemReq req = {lineAddr, GETS, selfId, state, cycle, &ccLock, *state, srcId, flags};
+                req.nocReq = nocRequest;
+                req.nocCoord = nocCoord;
                 uint32_t nextLevelLat = parents[parentId]->access(req) - cycle;
                 uint32_t netLat = parentRTTs[parentId];
                 profGETNextLevelLat.inc(nextLevelLat);
@@ -126,6 +133,8 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
                 else profGETXMissSM.inc();
                 uint32_t parentId = getParentId(lineAddr);
                 MemReq req = {lineAddr, GETX, selfId, state, cycle, &ccLock, *state, srcId, flags};
+                req.nocReq = nocRequest;
+                req.nocCoord = nocCoord;
                 uint32_t nextLevelLat = parents[parentId]->access(req) - cycle;
                 uint32_t netLat = parentRTTs[parentId];
                 profGETNextLevelLat.inc(nextLevelLat);
@@ -213,6 +222,35 @@ void MESITopCC::init(const g_vector<BaseCache*>& _children, zsimNetwork* network
     }
 }
 
+
+void MESITopCC::add(BaseCache* child, zsimNetwork* network, const char* name) {
+    uint32_t size = children.size();
+    
+    if(size == MAX_CACHE_CHILDREN){
+        panic("[%s] Children size (%d) is already MAX_CACHE_CHILDREN (%d), cannot add any more", name, (uint32_t)size, MAX_CACHE_CHILDREN);
+    }
+
+    children.resize(size + 1);
+    childrenRTTs.resize(size + 1);
+    children[size] = child;
+    childrenRTTs[size] = (network)? network->getRTT(name, children[size]->getName()) : 0;
+}
+
+void MESITopCC::add(const g_vector<BaseCache*>& _children, zsimNetwork* network, const char* name) {
+    uint32_t size = children.size();
+    
+    if(size == MAX_CACHE_CHILDREN){
+        panic("[%s] Children size (%d) is already MAX_CACHE_CHILDREN (%d), cannot add any more", name, (uint32_t)size, MAX_CACHE_CHILDREN);
+    }
+
+    children.resize(size + _children.size());
+    childrenRTTs.resize(size + _children.size());
+    for (uint32_t c = 0; c < _children.size(); c++) {
+        children[size+c] = _children[c];
+        childrenRTTs[size+c] = (network)? network->getRTT(name, _children[c]->getName()) : 0;
+    }
+}
+
 void MESITopCC::setGrandChildren(const g_vector<BaseCache*>& _grandChildren){
     grandChildren.resize(_grandChildren.size());
     for (uint32_t c = 0; c < grandChildren.size(); c++) {
@@ -221,7 +259,8 @@ void MESITopCC::setGrandChildren(const g_vector<BaseCache*>& _grandChildren){
 }
 
 
-uint64_t MESITopCC::sendInvalidates(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId) {
+uint64_t MESITopCC::sendInvalidates(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId, bool nocReq, uint32_t nocChildId) {
+
     //Send down downgrades/invalidates
     Entry* e = &array[lineId];
 
@@ -234,16 +273,43 @@ uint64_t MESITopCC::sendInvalidates(Address lineAddr, uint32_t lineId, InvType t
     if (!e->isEmpty()) {
         uint32_t numChildren = children.size();
         uint32_t sentInvs = 0;
-        for (uint32_t c = 0; c < numChildren; c++) {
-            if (e->sharers[c]) {
-                InvReq req = {lineAddr, type, reqWriteback, cycle, srcId};
-                uint64_t respCycle = children[c]->invalidate(req);
-                respCycle += childrenRTTs[c];
-                maxCycle = MAX(respCycle, maxCycle);
-                if (type == INV) e->sharers[c] = false;
-                sentInvs++;
+        if(!nocReq){
+            for (uint32_t c = 0; c < numChildren; c++) {
+                if (e->sharers[c]) {
+                    InvReq req = {lineAddr, type, reqWriteback, cycle, srcId};
+                    uint64_t respCycle = children[c]->invalidate(req);
+                    respCycle += childrenRTTs[c];
+                    maxCycle = MAX(respCycle, maxCycle);
+                    if (type == INV) e->sharers[c] = false;
+                    sentInvs++;
+                }
+            }
+        } else {
+            for(int g = 0; g < numGrandChildren; g++) {
+                if (e->sharers[g]) {
+                    InvReq req = {lineAddr, type, reqWriteback, cycle, srcId};
+                    req.nocChildId = g;
+                    uint64_t respCycle = children[0]->invalidate(req); // assuming I only have one NoC child
+                    maxCycle = MAX(respCycle, maxCycle);
+                    if (type == INV) e->sharers[g] = false;
+                    sentInvs++;
+                }
+            }
+
+            // If there were more than one invalidations, it means there are two delay events, a root and a sync, 
+            // the second of which needs to have its minStartCycle set 
+            if(sentInvs > 1){
+                EventRecorder* evRec = zinfo->eventRecorders[srcId]; 
+                TimingRecord tr = evRec->popRecord();
+                assert(tr.startEvent->getNumChildren() > 1);
+                
+                TimingEvent* syncEv = tr.startEvent->getChildLeftDescendant();
+                syncEv->setMinStartCycle(maxCycle);
+                evRec->pushRecord(tr);
             }
         }
+
+
         assert(sentInvs == e->numSharers);
         if (type == INV) {
             e->numSharers = 0;
@@ -258,19 +324,19 @@ uint64_t MESITopCC::sendInvalidates(Address lineAddr, uint32_t lineId, InvType t
 }
 
 
-uint64_t MESITopCC::processEviction(Address wbLineAddr, uint32_t lineId, bool* reqWriteback, uint64_t cycle, uint32_t srcId) {
+uint64_t MESITopCC::processEviction(Address wbLineAddr, uint32_t lineId, bool* reqWriteback, uint64_t cycle, uint32_t srcId, bool nocReq, uint32_t nocChildId) {
     if (nonInclusiveHack) {
         // Don't invalidate anything, just clear our entry
         array[lineId].clear();
         return cycle;
     } else {
         //Send down invalidates
-        return sendInvalidates(wbLineAddr, lineId, INV, reqWriteback, cycle, srcId);
+        return sendInvalidates(wbLineAddr, lineId, INV, reqWriteback, cycle, srcId, nocReq, nocChildId);
     }
 }
 
 uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint32_t childId, bool haveExclusive,
-                                  MESIState* childState, bool* inducedWriteback, uint64_t cycle, uint32_t srcId, uint32_t flags) {
+                                  MESIState* childState, bool* inducedWriteback, uint64_t cycle, uint32_t srcId, uint32_t flags, bool nocReq, uint32_t nocChildId) {
     Entry* e = &array[lineId];
     uint64_t respCycle = cycle;
     switch (type) {
@@ -284,8 +350,13 @@ uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType 
             }
             //note NO break in general
         case PUTS:
-            assert(e->sharers[childId]);
-            e->sharers[childId] = false;
+            if(!nocReq){
+                assert(e->sharers[childId]);
+                e->sharers[childId] = false;                  
+            }
+            else{
+                e->sharers[nocChildId] = false;
+            }
             e->numSharers--;
             *childState = I;
             break;
@@ -293,7 +364,12 @@ uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType 
             if (e->isEmpty() && haveExclusive && !(flags & MemReq::NOEXCL)) {
                 //Give in E state
                 e->exclusive = true;
-                e->sharers[childId] = true;
+                if(!nocReq){
+                    e->sharers[childId] = true;
+                }
+                else{
+                    e->sharers[srcId] = true;
+                }
                 e->numSharers = 1;
                 *childState = E;
             } else {
@@ -302,12 +378,17 @@ uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType 
 
                 if (e->isExclusive()) {
                     //Downgrade the exclusive sharer
-                    respCycle = sendInvalidates(lineAddr, lineId, INVX, inducedWriteback, cycle, srcId);
+                    respCycle = sendInvalidates(lineAddr, lineId, INVX, inducedWriteback, cycle, srcId, nocReq, nocChildId);
                 }
 
                 assert_msg(!e->isExclusive(), "Can't have exclusivity here. isExcl=%d excl=%d numSharers=%d", e->isExclusive(), e->exclusive, e->numSharers);
 
-                e->sharers[childId] = true;
+                if(!nocReq){
+                    e->sharers[childId] = true;
+                }
+                else{
+                    e->sharers[srcId] = true;
+                }
                 e->numSharers++;
                 e->exclusive = false; //dsm: Must set, we're explicitly non-exclusive
                 *childState = S;
@@ -317,17 +398,31 @@ uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType 
             assert(haveExclusive); //the current cache better have exclusive access to this line
 
             // If child is in sharers list (this is an upgrade miss), take it out
-            if (e->sharers[childId]) {
-                assert_msg(!e->isExclusive(), "Spurious GETX, childId=%d numSharers=%d isExcl=%d excl=%d", childId, e->numSharers, e->isExclusive(), e->exclusive);
-                e->sharers[childId] = false;
-                e->numSharers--;
+            if(!nocReq){
+                if (e->sharers[childId]) {
+                    assert_msg(!e->isExclusive(), "Spurious GETX, childId=%d numSharers=%d isExcl=%d excl=%d", childId, e->numSharers, e->isExclusive(), e->exclusive);
+                    e->sharers[childId] = false;
+                    e->numSharers--;
+                }
+            }
+            else{
+                if (e->sharers[srcId]) {
+                    // assert_msg(!e->isExclusive(), "Spurious GETX, childId=%d numSharers=%d isExcl=%d excl=%d", childId, e->numSharers, e->isExclusive(), e->exclusive);
+                    e->sharers[srcId] = false;
+                    e->numSharers--;
+                }
             }
 
             // Invalidate all other copies
-            respCycle = sendInvalidates(lineAddr, lineId, INV, inducedWriteback, cycle, srcId);
+            respCycle = sendInvalidates(lineAddr, lineId, INV, inducedWriteback, cycle, srcId, nocReq, nocChildId);
 
             // Set current sharer, mark exclusive
-            e->sharers[childId] = true;
+            if(!nocReq){
+                e->sharers[childId] = true;
+            } else{
+                // I do this because the childId will always be 0 with noc1-L3 
+                e->sharers[srcId] = true;
+            }
             e->numSharers++;
             e->exclusive = true;
 
@@ -342,13 +437,13 @@ uint64_t MESITopCC::processAccess(Address lineAddr, uint32_t lineId, AccessType 
     return respCycle;
 }
 
-uint64_t MESITopCC::processInval(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId) {
+uint64_t MESITopCC::processInval(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId, bool nocReq, uint32_t nocChildId) {
     if (type == FWD) {//if it's a FWD, we should be inclusive for now, so we must have the line, just invLat works
         assert(!nonInclusiveHack); //dsm: ask me if you see this failing and don't know why
         return cycle;
     } else {
         //Just invalidate or downgrade down to children as needed
-        return sendInvalidates(lineAddr, lineId, type, reqWriteback, cycle, srcId);
+        return sendInvalidates(lineAddr, lineId, type, reqWriteback, cycle, srcId, nocReq, nocChildId);
     }
 }
 

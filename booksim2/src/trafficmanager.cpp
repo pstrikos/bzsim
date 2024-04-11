@@ -604,7 +604,11 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     _slowest_flit.resize(_classes, -1);
     _slowest_packet.resize(_classes, -1);
 
- 
+    outstandingFlits.resize(_subnets);
+    for(int s = 0 ; s < _subnets; ++s){
+        outstandingFlits[s].resize(_nodes);
+        _net[s]->setOutstandingFlits(&outstandingFlits[s]); // set the pointer in each network/router/channel to the outStandingFlits array used in trafficmanager
+    }
 
 }
 
@@ -844,12 +848,25 @@ int TrafficManager::_IssuePacket( int source, int cl )
     return result;
 }
 
-
-// injects new packets to the routers' inputs and ejects flits from their outputs
 void TrafficManager::_Step( )
 {   
+    cntStepCalls++;
 
-    // printInjectedPackets();
+#if defined(_SKIP_STEP_) || defined(_EMPTY_STEP_)
+    for(auto & itPack : _in_flight_packets){
+        if(--itPack.second == 0){ // its time to eject
+            _in_flight_packets.erase(itPack.first);
+
+            auto it = _in_flight_req_address.find(itPack.first);
+            parent->CallbackEverything(it->second.second, it->second.first);
+            _in_flight_req_address.erase(it);
+        }
+    }
+#endif
+
+
+// leave this on if _EMPTY_STEP_ but not if _SKIP_STEP_
+#ifndef _SKIP_STEP_
     bool flits_in_flight = false;
     for(int c = 0; c < _classes; ++c) {
         flits_in_flight |= !_total_in_flight_flits[c].empty(); // check that there is at least one flit waiting in a class
@@ -860,47 +877,50 @@ void TrafficManager::_Step( )
     }
 
     // flits[] stores pairs of <node, ejected flits> for all nodes in a subnet. 
-    // Initialize vector "flits" of size "_subnets" 
+    // Initialize vector "flits" of size "_subnets"
     vector<map<int, Flit *> > flits(_subnets); 
-    // update channel's FIFOs (inputs/outpus) and store injected flits into flits[] vector
+
+
+    // --------------------------  Step 1----------------------------------------- //
+    // Read from the channel's and routers outputs. 
+    // This includes ejecting from the network by reading the _outut of the ejection channels, 
+    // and inserting flits/credits that have traversed channels into routers, by reading 
+    // each channel's _output
     for ( int subnet = 0; subnet < _subnets; ++subnet ) {
         // for every node in the subnet, check if there are ejected flits waiting
         // and if there are insert them into flits[]
         for ( int n = 0; n < _nodes; ++n ) {
-        
-            // ReadFlit returns _output from the _eject channel of node n
-            Flit * const f = _net[subnet]->ReadFlit( n ); // returns _eject[n]._output
-            // If router n has a flit in its _eject queue
-            // store it in the flits[] vector along all other flits.
+            if(outstandingFlits[subnet][n] != 0 ){
             
-            if ( f ) { 
-                if(f->watch) {  
-                    *gWatchOut << GetSimTime() << " | "
-                               << "node" << n << " | "
-                               << "Ejecting flit " << f->id
-                               << " (packet " << f->pid << ")"
-                               << " from VC " << f->vc
-                               << "." << endl;
-                }
-                flits[subnet].insert(make_pair(n, f)); // add the outgoing ejected flit into flits[]
-                if((_sim_state == warming_up) || (_sim_state == running)) { 
-                    ++_accepted_flits[f->cl][n];
-                    if(f->tail) {
-                        ++_accepted_packets[f->cl][n];
+            // ReadFlit returns _output from the _eject channel of node n
+                Flit * const f = _net[subnet]->ReadFlit( n ); // returns _eject[n]._output
+                // If router n has a flit in its _eject queue output
+                // store it in the flits[] vector along all other flits.
+                
+                if ( f ) { 
+                    if(f->watch) {  
+                        *gWatchOut << GetSimTime() << " | "
+                                << "node" << n << " | "
+                                << "Ejecting flit " << f->id
+                                << " (packet " << f->pid << ")"
+                                << " from VC " << f->vc
+                                << "." << endl;
                     }
-                }
+                    flits[subnet].insert(make_pair(n, f)); // add the outgoing ejected flit into flits[]
+                    if((_sim_state == warming_up) || (_sim_state == running)) { 
+                        ++_accepted_flits[f->cl][n];
+                        if(f->tail) {
+                            ++_accepted_packets[f->cl][n];
+                        }
+                    }
 
-                // A packet has reached its destination
-                // Send back its latency to zsim
-                if (f->tail == true){
-                    auto it = _in_flight_req_address.find(f->pid);
-                    parent->CallbackEverything(it->second);
-                    _in_flight_req_address.erase(it);  
-                }
+                    outstandingFlits[subnet][n] -= 1; // node n just injected one flit
 
+                }
             }
-            // If there is a credit, it means that the flit receivev a flit
-            Credit * const c = _net[subnet]->ReadCredit( n ); // read the credit given by the downstream RNI/router
+            
+            // If there is a credit, it means that the router received a flit
+            Credit * const c = _net[subnet]->ReadCredit( n ); // read the credit given by the local RNI
             if ( c ) { 
 #ifdef TRACK_FLOWS
                 for(set<int>::const_iterator iter = c->vc.begin(); iter != c->vc.end(); ++iter) {
@@ -916,270 +936,293 @@ void TrafficManager::_Step( )
                 c->Free();
             }
         }
-        // after finishing with all routers in the subnet, and for every timedmodule, read the channel's input
-        // ie write the next element to it's FIFO
-        _net[subnet]->ReadInputs( );   // push _input in the _wait_queue[]
+        /* Read the inputs for everything in _time_modules which includes every channel in the network, 
+          including inject, eject, and credit channels. 
+          Each channels ReadInput function will be pushing flits from its _input to its _waiting_queue
+          to simulate the delay needed for channel traversal
+          Each router's ReadInput will be pushing incoming flits/credits to the input buffers and 
+          setting the _active flag for each router that has no incoming flits/credits */
+        _net[subnet]->ReadInputs( );
     }
+
 #ifdef TRACK_INJECTION
     printInjectedPackets();
     cnt++;
 #endif
 
-    // for each node, get from the _partial_packet the flit that is waiting to be injected, -
+
+    // Step 2 : VC selection of injected flits and injection from input node to the network
+
+    // for each node, get from the _partial_packet the flit that is waiting to be injected, 
     // find a proper VC for it, pop it out of the vector and write it to the injection queue of the router 
     for(int subnet = 0; subnet < _subnets; ++subnet) {
 
         for(int n = 0; n < _nodes; ++n) {
+            assert(outstandingFlits[subnet][n] >= 0);
 
-            Flit * f = NULL;
+            if(outstandingFlits[subnet][n] != 0 ){
+            
+                Flit * f = NULL;
 
-            // on destination buffer for each node 
-            BufferState * const dest_buf = _buf_states[n][subnet]; 
+                // on destination buffer for each node 
+                BufferState * const dest_buf = _buf_states[n][subnet]; 
 
-            int const last_class = _last_class[n][subnet];
+                int const last_class = _last_class[n][subnet];
 
-            int class_limit = _classes;
+                int class_limit = _classes;
 
-            if(_hold_switch_for_packet) { // 0
-                list<Flit *> const & pp = _partial_packets[n][last_class];
-                if(!pp.empty() && !pp.front()->head && 
-                   !dest_buf->IsFullFor(pp.front()->vc)) {
-                    f = pp.front();
-                    assert(f->vc == _last_vc[n][subnet][last_class]); 
-                    // if we're holding the connection, we don't need to check that class 
-                    // again in the for loop
-                    --class_limit;
+                if(_hold_switch_for_packet) { // 0
+                    list<Flit *> const & pp = _partial_packets[n][last_class];
+                    if(!pp.empty() && !pp.front()->head && 
+                    !dest_buf->IsFullFor(pp.front()->vc)) {
+                        f = pp.front();
+                        assert(f->vc == _last_vc[n][subnet][last_class]); 
+                        // if we're holding the connection, we don't need to check that class 
+                        // again in the for loop
+                        --class_limit;
+                    }
                 }
-            }
 
-            for(int i = 1; i <= class_limit; ++i) { // 1 class right now
+                for(int i = 1; i <= class_limit; ++i) { // 1 class right now
 
-                int const c = (last_class + i) % _classes;
+                    int const c = (last_class + i) % _classes;
 
-                // pp contains the part of _partial_packet that belong to a specific class
-                // of just one node
-                list<Flit *> const & pp = _partial_packets[n][c];
-               
-                if(pp.empty()) {
-                    continue;
-                }
+                    // pp contains the part of _partial_packet that belong to a specific class of the node
+                    list<Flit *> const & pp = _partial_packets[n][c];
                 
-                Flit * const cf = pp.front(); // get the first flit in the queue (oldest)
-                assert(cf);
-                assert(cf->cl == c);
-	
-                if(cf->subnetwork != subnet) {
-                    continue;
-                }
-
-                if(f && (f->pri >= cf->pri)) {
-                    continue;
-                }
-
-                // I'm going to be creating packets ahead of time
-                // so if they are in the queue back but it is not yet the time 
-                // to use them, they should be skipped
-                if (cf->ctime > _time){
-                    continue;
-                }
-
-                // remember that when creating the flit, the VC is set to -1
-                if(cf->head && cf->vc == -1) { // Find first available VC
-	  
-                    OutputSet route_set;
-                   //( const Router *, const Flit *, int in_channel, OutputSet *, bool );
-                    _rf(NULL, cf, -1, &route_set, true); //
-                    set<OutputSet::sSetElement> const & os = route_set.GetSet();
-                    assert(os.size() == 1);
-                    OutputSet::sSetElement const & se = *os.begin();
-                    assert(se.output_port == -1);
-                    int vc_start = se.vc_start;
-                    int vc_end = se.vc_end;
-                    int vc_count = vc_end - vc_start + 1;
-                    if(_noq) { //next-hop-output queueing
-                        assert(_lookahead_routing);
-                        const FlitChannel * inject = _net[subnet]->GetInject(n); //return _inject[n]
-                        const Router * router = inject->GetSink(); //return _routerSink
-                        assert(router);
-                        int in_channel = inject->GetSinkPort();
-
-                        // NOTE: Because the lookahead is not for injection, but for the 
-                        // first hop, we have to temporarily set cf's VC to be non-negative 
-                        // in order to avoid seting of an assertion in the routing function.
-                        cf->vc = vc_start;
-                        _rf(router, cf, in_channel, &cf->la_route_set, false); // Lookahead route info:  OutputSet la_route_set;
-                        cf->vc = -1;
-
-                        if(cf->watch) {
-                            *gWatchOut << GetSimTime() << " | "
-                                       << "node" << n << " | "
-                                       << "Generating lookahead routing info for flit " << cf->id
-                                       << " (NOQ)." << endl;
-                        }
-                        set<OutputSet::sSetElement> const sl = cf->la_route_set.GetSet();
-                        assert(sl.size() == 1);
-                        int next_output = sl.begin()->output_port;
-                        vc_count /= router->NumOutputs();
-                        vc_start += next_output * vc_count;
-                        vc_end = vc_start + vc_count - 1;
-                        assert(vc_start >= se.vc_start && vc_start <= se.vc_end);
-                        assert(vc_end >= se.vc_start && vc_end <= se.vc_end);
-                        assert(vc_start <= vc_end);
-                    }
-                    if(cf->watch) {
-                        *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                   << "Finding output VC for flit " << cf->id
-                                   << ":" << endl;
-                    }
-                    for(int i = 1; i <= vc_count; ++i) {
-                        int const lvc = _last_vc[n][subnet][c];
-                        int const vc =
-                            (lvc < vc_start || lvc > vc_end) ?
-                            vc_start :
-                            (vc_start + (lvc - vc_start + i) % vc_count);
-                        assert((vc >= vc_start) && (vc <= vc_end));
-                        if(!dest_buf->IsAvailableFor(vc)) { // return _in_use_by[vc] < 0
-                            if(cf->watch) {
-                                *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                           << "  Output VC " << vc << " is busy." << endl;
-                            }
-                        } else {
-                            if(dest_buf->IsFullFor(vc)) {
-                                if(cf->watch) {
-                                    *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                               << "  Output VC " << vc << " is full." << endl;
-                                }
-                            } else {
-                                if(cf->watch) {
-                                    *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                               << "  Selected output VC " << vc << "." << endl;
-                                }
-                                cf->vc = vc; // now set the vc for that head flit
-                                break;
-                            }
-                        }
+                    if(pp.empty()) {
+                        continue;
                     }
                     
-                }
-                if(cf->vc == -1) { // if vc is still -1, it means I wasn't able to find anything
-                    if(cf->watch) {
-                        *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                   << "No output VC found for flit " << cf->id
-                                   << "." << endl;
+                    Flit * const cf = pp.front(); // get the first flit in the queue (oldest)
+                    assert(cf);
+                    assert(cf->cl == c);
+        
+                    if(cf->subnetwork != subnet) {
+                        continue;
                     }
-                } else {
-                    if(dest_buf->IsFullFor(cf->vc)) { //return _in_use_by[vc] < 0
-                        if(cf->watch) {
-                            *gWatchOut << GetSimTime() << " | " << FullName() << " | "
-                                       << "Selected output VC " << cf->vc
-                                       << " is full for flit " << cf->id
-                                       << "." << endl;
-                        }
-                    } else {
-                        f = cf; // if I managed to find a suitable VC and that buffer is available then assign f to cf
+
+                    if(f && (f->pri >= cf->pri)) {
+                        continue;
                     }
-                }
-            }
 
-            if(f) {
+                    // I'm going to be creating packets ahead of time
+                    // so if they are in the queue back but it is not yet the time 
+                    // to use them, they should be skipped
+                    if (cf->ctime > _time){
+                        continue;
+                    }
 
-                assert(f->subnetwork == subnet);
 
-                int const c = f->cl;
-
-                if(f->head) {
-	  
-                    if (_lookahead_routing) {
-                        if(!_noq) {
-                            const FlitChannel * inject = _net[subnet]->GetInject(n);
-                            const Router * router = inject->GetSink();
+                    // Step 2.1: Virtual Channel Selection
+                    // -- remember that when creating the flit, the VC is set to -1
+                    if(cf->head && cf->vc == -1) { // Find first available VC
+        
+                        OutputSet route_set;
+                        _rf(NULL, cf, -1, &route_set, true); //
+                        set<OutputSet::sSetElement> const & os = route_set.GetSet();
+                        assert(os.size() == 1);
+                        OutputSet::sSetElement const & se = *os.begin();
+                        assert(se.output_port == -1);
+                        int vc_start = se.vc_start;
+                        int vc_end = se.vc_end;
+                        int vc_count = vc_end - vc_start + 1;
+                        if(_noq) { //next-hop-output queueing
+                            assert(_lookahead_routing);
+                            const FlitChannel * inject = _net[subnet]->GetInject(n); //return _inject[n]
+                            const Router * router = inject->GetSink(); //return _routerSink
                             assert(router);
                             int in_channel = inject->GetSinkPort();
-                            //( const Router *, const Flit *, int in_channel, OutputSet *, bool );
-                            // sig faults here
-                            _rf(router, f, in_channel/*the output of inject*/, &f->la_route_set, false); // sets lookahead (la_route_set)
-                            if(f->watch) {
+
+                            // NOTE: Because the lookahead is not for injection, but for the 
+                            // first hop, we have to temporarily set cf's VC to be non-negative 
+                            // in order to avoid seting of an assertion in the routing function.
+                            cf->vc = vc_start;
+                            _rf(router, cf, in_channel, &cf->la_route_set, false); // Lookahead route info:  OutputSet la_route_set;
+                            cf->vc = -1;
+
+                            if(cf->watch) {
                                 *gWatchOut << GetSimTime() << " | "
-                                           << "node" << n << " | "
-                                           << "Generating lookahead routing info for flit " << f->id
-                                           << "." << endl;
+                                        << "node" << n << " | "
+                                        << "Generating lookahead routing info for flit " << cf->id
+                                        << " (NOQ)." << endl;
                             }
-                        } else if(f->watch) {
-                            *gWatchOut << GetSimTime() << " | "
-                                       << "node" << n << " | "
-                                       << "Already generated lookahead routing info for flit " << f->id
-                                       << " (NOQ)." << endl;
+                            set<OutputSet::sSetElement> const sl = cf->la_route_set.GetSet();
+                            assert(sl.size() == 1);
+                            int next_output = sl.begin()->output_port;
+                            vc_count /= router->NumOutputs();
+                            vc_start += next_output * vc_count;
+                            vc_end = vc_start + vc_count - 1;
+                            assert(vc_start >= se.vc_start && vc_start <= se.vc_end);
+                            assert(vc_end >= se.vc_start && vc_end <= se.vc_end);
+                            assert(vc_start <= vc_end);
+                        }
+                        if(cf->watch) {
+                            *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                    << "Finding output VC for flit " << cf->id
+                                    << ":" << endl;
+                        }
+                        for(int i = 1; i <= vc_count; ++i) {
+                            int const lvc = _last_vc[n][subnet][c];
+                            int const vc =
+                                (lvc < vc_start || lvc > vc_end) ?
+                                vc_start :
+                                (vc_start + (lvc - vc_start + i) % vc_count);
+                            assert((vc >= vc_start) && (vc <= vc_end));
+                            if(!dest_buf->IsAvailableFor(vc)) { // return _in_use_by[vc] < 0
+                                if(cf->watch) {
+                                    *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                            << "  Output VC " << vc << " is busy." << endl;
+                                }
+                            } else {
+                                if(dest_buf->IsFullFor(vc)) {
+                                    if(cf->watch) {
+                                        *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                                << "  Output VC " << vc << " is full." << endl;
+                                    }
+                                } else {
+                                    if(cf->watch) {
+                                        *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                                << "  Selected output VC " << vc << "." << endl;
+                                    }
+                                    cf->vc = vc; // now set the vc for that head flit
+                                    break;
+                                }
+                            }
+                        }
+                        
+                    }
+                    
+                    
+                    if(cf->vc == -1) { // if vc is still -1, it means I wasn't able to find anything
+                        if(cf->watch) {
+                            *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                    << "No output VC found for flit " << cf->id
+                                    << "." << endl;
                         }
                     } else {
-                        f->la_route_set.Clear();
+                        if(dest_buf->IsFullFor(cf->vc)) { //return _in_use_by[vc] < 0
+                            if(cf->watch) {
+                                *gWatchOut << GetSimTime() << " | " << FullName() << " | "
+                                        << "Selected output VC " << cf->vc
+                                        << " is full for flit " << cf->id
+                                        << "." << endl;
+                            }
+                        } else {
+                            f = cf;
+                        }
                     }
-
-                    dest_buf->TakeBuffer(f->vc);
-                    _last_vc[n][subnet][c] = f->vc;
                 }
-	
-                _last_class[n][subnet] = c;
 
-                // by now I have found the VC that the flit will use, so pop it
-                // Note that the flit is still in the _total_in_flight_flits
-                // cout << "------------------------------------------" <<
-                        // "curr time " << _time << ": flit " << f->id << " created at time " << f->ctime << endl;
-                _partial_packets[n][c].pop_front(); 
+                // if I managed to find a suitable VC for the selcted flit cf, and that buffer is available 
+                // then f holds that cf that just passed through Virtual Channel Selection
 
-#ifdef TRACK_FLOWS
-                ++_outstanding_credits[c][subnet][n];
-                _outstanding_classes[n][subnet][f->vc].push(c);
-#endif
+                // Step 2.2: Flit injection in the network and writting the flit in the injected router's input
 
-                // set the buffer's parameter before actually injecting the flit
-                dest_buf->SendingFlit(f);
-	
-                if(_pri_type == network_age_based) {
-                    f->pri = numeric_limits<int>::max() - _time;
-                    assert(f->pri >= 0);
-                }
-	
-                if(f->watch) {
-                    *gWatchOut << GetSimTime() << " | "
-                               << "node" << n << " | "
-                               << "Injecting flit " << f->id
-                               << " into subnet " << subnet
-                               << " at time " << _time
-                               << " with priority " << f->pri
-                               << "." << endl;
-                }
-                f->itime = _time;
+                if(f) {
 
-                #ifdef CALC_INJECTION_RATE
-                    cnt_flits[n]++;
-                    cnt_flit_total++;
-                #endif
-                // Pass selected VC "back" to the next flit in the queue
-                if(!_partial_packets[n][c].empty() && !f->tail) {
-                    Flit * const nf = _partial_packets[n][c].front();
-                    nf->vc = f->vc;
-                }
-	
-                if((_sim_state == warming_up) || (_sim_state == running)) {
-                    ++_sent_flits[c][n];
+                    assert(f->subnetwork == subnet);
+
+                    int const c = f->cl;
+
                     if(f->head) {
-                        ++_sent_packets[c][n];
+        
+                        if (_lookahead_routing) {
+                            if(!_noq) {
+                                const FlitChannel * inject = _net[subnet]->GetInject(n); // get the _inject channel of the current node
+                                const Router * router = inject->GetSink(); // get the destination router of the _inject channel
+                                assert(router);
+                                int in_channel = inject->GetSinkPort();
+                                //( const Router *, const Flit *, int in_channel, OutputSet *, bool );
+                                // sig faults here
+                                _rf(router, f, in_channel/*the output of inject*/, &f->la_route_set, false); // sets lookahead (la_route_set)
+                                if(f->watch) {
+                                    *gWatchOut << GetSimTime() << " | "
+                                            << "node" << n << " | "
+                                            << "Generating lookahead routing info for flit " << f->id
+                                            << "." << endl;
+                                }
+                            } else if(f->watch) {
+                                *gWatchOut << GetSimTime() << " | "
+                                        << "node" << n << " | "
+                                        << "Already generated lookahead routing info for flit " << f->id
+                                        << " (NOQ)." << endl;
+                            }
+                        } else {
+                            f->la_route_set.Clear();
+                        }
+
+                        dest_buf->TakeBuffer(f->vc);
+                        _last_vc[n][subnet][c] = f->vc;
                     }
+        
+                    _last_class[n][subnet] = c;
+
+                    // by now I have found the VC that the flit will use, so pop it
+                    // Note that the flit is still in the _total_in_flight_flits
+                    // cout << "------------------------------------------" <<
+                            // "curr time " << _time << ": flit " << f->id << " created at time " << f->ctime << endl;
+                    _partial_packets[n][c].pop_front(); 
+
+    #ifdef TRACK_FLOWS
+                    ++_outstanding_credits[c][subnet][n];
+                    _outstanding_classes[n][subnet][f->vc].push(c);
+    #endif
+
+                    // update the downstream buffer with the information of the flit that will soon be traversing
+                    // the channel to reach it
+                    dest_buf->SendingFlit(f);
+        
+                    if(_pri_type == network_age_based) {
+                        f->pri = numeric_limits<int>::max() - _time;
+                        assert(f->pri >= 0);
+                    }
+        
+                    if(f->watch) {
+                        *gWatchOut << GetSimTime() << " | "
+                                << "node" << n << " | "
+                                << "Injecting flit " << f->id
+                                << " into subnet " << subnet
+                                << " at time " << _time
+                                << " with priority " << f->pri
+                                << "." << endl;
+                    }
+                    f->itime = _time;
+
+                    #ifdef CALC_INJECTION_RATE
+                        cnt_flits[n]++;
+                        cnt_flit_total++;
+                    #endif
+                    // Pass selected VC "back" to the next flit in the queue
+                    if(!_partial_packets[n][c].empty() && !f->tail) {
+                        Flit * const nf = _partial_packets[n][c].front();
+                        nf->vc = f->vc;
+                    }
+        
+                    if((_sim_state == warming_up) || (_sim_state == running)) {
+                        ++_sent_flits[c][n];
+                        if(f->head) {
+                            ++_sent_packets[c][n];
+                        }
+                    }
+        
+    #ifdef TRACK_FLOWS
+                    ++_injected_flits[c][n];
+    #endif
+        
+                    // allocation is finished so WRITE the flit to the router's input channel's _input
+                    // sets _inject[n]._input = f
+                    _net[subnet]->WriteFlit(f, n);  
+	
                 }
-	
-#ifdef TRACK_FLOWS
-                ++_injected_flits[c][n];
-#endif
-	
-                // allocation is finished so WRITE the flit to the router's input channel
-                // sets _inject[n]._input = f
-                                //_inject[n]->Send(f)
-                _net[subnet]->WriteFlit(f, n);   // will be done in ZSIM
-	
             }
+
         } 
     }
     
+
+
+
     for(int subnet = 0; subnet < _subnets; ++subnet) {
         for(int n = 0; n < _nodes; ++n) {
             // iterator find (const key_type& k) searches the container for an 
@@ -1208,22 +1251,31 @@ void TrafficManager::_Step( )
 #endif
 	
                 _RetireFlit(f, n); // here the flit is also deleted from the total_in_flight_flits
+                if (f->tail == true){
+                        auto it = _in_flight_req_address.find(f->pid);
+                        // _in_flight_req_address.insert(make_pair(pid,make_pair(nocAddr,addr) ));
+                        parent->CallbackEverything(f->pid, it->second.first);
+                        _in_flight_req_address.erase(it);  
+                }
 
             }
         }
         flits[subnet].clear(); // remove all flits that were ejected
+
+        
         _net[subnet]->Evaluate( );
         _net[subnet]->WriteOutputs( ); //  sets _output for each flitChannel from its FIFO's output
     }
 
+#endif
     ++_time;
     assert(_time);
     if(gTrace){
         // cout<<"TIME "<<_time<<endl;
     }
-
 }
-  
+
+
 bool TrafficManager::_PacketsOutstanding( ) const
 {
     for ( int c = 0; c < _classes; ++c ) {
@@ -1364,380 +1416,6 @@ void TrafficManager::_DisplayRemaining( ostream & os ) const
     }
 }
 
-bool TrafficManager::_SingleSim( )
-{
-    int converged = 0;
-
-    //once warmed up, we require 3 converging runs to end the simulation 
-    vector<double> prev_latency(_classes, 0.0);
-    vector<double> prev_accepted(_classes, 0.0);
-    bool clear_last = false;
-    int total_phases = 0;
-    while( total_phases < _max_samples ) {
-    
-        if ( clear_last || 
-        (( ( _sim_state == warming_up ) && ( ( total_phases % 2 ) == 0 ) )) ) {
-            clear_last = false;
-            _ClearStats( );
-        }
-    
-        cout << "++++++++++++++++++++++++++++++++++++++++++++++++   phase: "<<
-         total_phases << ", sim_state: " << _sim_state << 
-         ", converged: " << converged << endl;  
-         
-        // run step 1000 times. There, I check all queues, eject, inject etc.. 
-        // stats are also updated in here
-        for ( int iter = 0; iter < _sample_period; ++iter ){ // 1000 sample_period
-            _Step( );
-        }
-        
-        #ifdef CALC_INJECTION_RATE
-        cout << "++++++++++++++++++++++++++++++<<++++++++++++++++++   phase: "<<
-           total_phases << ", sim_state: " << _sim_state << 
-            ", converged: " << converged << endl;  
-    
-        cout << "====================================================" << endl <<
-            "cnt_msr_flits: " << cnt_msr_flits << endl <<
-            "cnt_msr_flit_total: " << cnt_msr_flit_total << endl <<
-            "cnt_gen_total: " << cnt_gen_flit_total << endl <<
-            "cnt_gen_flit_total: " << cnt_gen_flit_total << endl <<
-            "newly_gen_flit: " << cnt_gen_flit_total - cnt_prev_gen_flit_total << endl <<
-            "newly_msr_flit: " << cnt_msr_flit_total - cnt_prev_msr_flit_total << endl <<
-             "====================================================" << endl;
-        cnt_prev_gen_flit_total = cnt_gen_flit_total;
-        cnt_prev_msr_flit_total = cnt_msr_flit_total;
-        #endif 
-
-        UpdateStats();
-        DisplayStats();
-        int lat_exc_class = -1; // class that exceeded latency
-        int lat_chg_exc_class = -1; // class that exceeded changed latency 
-        int acc_chg_exc_class = -1; // class that exceeded 
-    
-        // TODO: do I need to skip this if there is no new flits injected?
-        for(int c = 0; c < _classes; ++c) {
-      
-            if(_measure_stats[c] == 0) {
-                continue;
-            }
-
-            // Packet LATency stats are updated during flit retierement
-            double cur_latency = _plat_stats[c]->Average( );
-
-            int total_accepted_count;
-            _ComputeStats( _accepted_flits[c], &total_accepted_count );
-            double total_accepted_rate = (double)total_accepted_count / (double)(_time - _reset_time);
-            double cur_accepted = total_accepted_rate / (double)_nodes;
-
-            double latency_change = fabs((cur_latency - prev_latency[c]) / cur_latency);
-            prev_latency[c] = cur_latency;
-
-            double accepted_change = fabs((cur_accepted - prev_accepted[c]) / cur_accepted);
-            prev_accepted[c] = cur_accepted;
-
-            double latency = (double)_plat_stats[c]->Sum();
-            double count = (double)_plat_stats[c]->NumSamples();
-      
-
-            // _total_in_flight contains flits that have been generated
-            // but not jet consumed during step().
-            // Normally ctime of all flits is < _time since they were generated
-            // during step().
-            // Now I am injecting everything before the actual step(), 
-            // so there are flits in the map that have ctime > _time
-            // and shouldn't affect latency.
-            map<int, Flit *>::const_iterator iter;
-            for(iter = _total_in_flight_flits[c].begin(); 
-                iter != _total_in_flight_flits[c].end(); 
-                iter++) {
-                if (iter->second->ctime < _time){
-                    latency += (double)(_time - iter->second->ctime);
-                }
-                count++;
-            }
-      
-            
-            // stores a class that hass exceeded its latency threshold.
-            // When no class have exceeded it, lat_exc_class stays at -1
-            if((lat_exc_class < 0) &&           // if this is the first iterration 
-               (_latency_thres[c] >= 0.0) &&    // a latency threshold has been set
-               ((latency / count) > _latency_thres[c])) { // 
-                lat_exc_class = c;
-            }
-
-            cout << "latency change    = " << latency_change << endl;
-            if(lat_chg_exc_class < 0) {
-                if((_sim_state == warming_up) &&
-                   (_warmup_threshold[c] >= 0.0) &&
-                   (latency_change > _warmup_threshold[c])) {
-                    lat_chg_exc_class = c;
-                } else if((_sim_state == running) &&
-                          (_stopping_threshold[c] >= 0.0) &&
-                          (latency_change > _stopping_threshold[c])) {
-                    lat_chg_exc_class = c;
-                }
-            }
-
-            cout << "throughput change = " << accepted_change << endl;
-            if(acc_chg_exc_class < 0) {
-                if((_sim_state == warming_up) &&
-                   (_acc_warmup_threshold[c] >= 0.0) &&
-                   (accepted_change > _acc_warmup_threshold[c])) {
-                    acc_chg_exc_class = c;
-                } else if((_sim_state == running) &&
-                          (_acc_stopping_threshold[c] >= 0.0) &&
-                          (accepted_change > _acc_stopping_threshold[c])) {
-                    acc_chg_exc_class = c;
-                }
-            }
-      
-        }
-    
-        // Fail safe for latency mode, throughput will ust continue
-        if ( _measure_latency && ( lat_exc_class >= 0 ) ) {
-      
-            cout << "Average latency for class " << lat_exc_class << " exceeded " << _latency_thres[lat_exc_class] << " cycles. Aborting simulation." << endl;
-            converged = 0; 
-            _sim_state = draining;
-            cout << "---------------------------------------- Simstate d" << endl;
-            _drain_time = _time;
-            if(_stats_out) {
-                WriteStats(*_stats_out);
-            }
-            break;
-      
-        }
-    
-        if ( ( !_measure_latency || ( lat_chg_exc_class < 0 ) ) &&
-                ( acc_chg_exc_class < 0 ) ) {
-            ++converged;
-        } else {
-            converged = 0;
-        }
-        ++total_phases;
-    }
-  
-    if ( _sim_state == running ) {
-        ++converged;
-    
-        _sim_state  = draining;
-        _drain_time = _time;
-
-        // TODO: trouble starts here
-        if (true){
-        // if ( _measure_latency ) {
-            cout << "Draining all recorded packets ..." << endl;
-
-            // indicate that all queues are now draining
-            for ( int input = 0; input < _nodes; ++input ) {
-                 for ( int c = 0; c < _classes; ++c ) { 
-                    _qdrained[input][c] = true;
-                 }
-            }
-
-            int empty_steps = 0;
-        
-            while( _PacketsOutstanding( ) ) {  // returns true if !_qdrained[s][c] 
-                
-                
-                _Step( ); 
-	
-                ++empty_steps;
-	
-                if ( empty_steps % 1000 == 0 ) {
-	  
-                    int lat_exc_class = -1;
-	  
-                    for(int c = 0; c < _classes; c++) {
-	    
-                        double threshold = _latency_thres[c];
-	    
-                        if(threshold < 0.0) {
-                            continue;
-                        }
-	    
-                        double acc_latency = _plat_stats[c]->Sum();
-                        double acc_count = (double)_plat_stats[c]->NumSamples();
-	    
-                        map<int, Flit *>::const_iterator iter;
-                        for(iter = _total_in_flight_flits[c].begin(); 
-                            iter != _total_in_flight_flits[c].end(); 
-                            iter++) {
-                            acc_latency += (double)(_time - iter->second->ctime);
-                            acc_count++;
-                        }
-	    
-                        if((acc_latency / acc_count) > threshold) {
-                            lat_exc_class = c;
-                            break;
-                        }
-                    }
-	  
-                    if(lat_exc_class >= 0) {
-                        cout << "Average latency for class " << lat_exc_class << " exceeded " << _latency_thres[lat_exc_class] << " cycles. Aborting simulation." << endl;
-                        converged = 0; 
-                        _sim_state = warming_up;
-                        
-                cout << "---------------------------------------- Simstate warming up" << endl;
-                        if(_stats_out) {
-                            WriteStats(*_stats_out);
-                        }
-                        break;
-                    }
-	  
-                    _DisplayRemaining( ); 
-	  
-                }
-            }
-        }
-    } else {
-        cout << "Too many sample periods needed to converge" << endl;
-    }
-  
-    return ( converged > 0 );
-}
-
-bool TrafficManager::Run( )
-{
-    
-    for ( int sim = 0; sim < _total_sims; ++sim ) {
-        // _time = 0;
-        // _requestsOutstanding.assign(_nodes, 0);
-        // for (int i=0;i<_nodes;i++) {
-        //     while(!_repliesPending[i].empty()) {
-        //         _repliesPending[i].front()->Free();
-        //         _repliesPending[i].pop_front();
-        //     }
-        // }
-
-        //reset queuetime for all sources
-        // for ( int s = 0; s < _nodes; ++s ) {
-        //     _qtime[s].assign(_classes, 0);
-        //     _qdrained[s].assign(_classes, false);
-        // }
-
-        // now set in init()
-        //_sim_state    = running;
-
-        // now run in init()
-        //_ClearStats( );
-
-        // for(int c = 0; c < _classes; ++c) {
-        //     _traffic_pattern[c]->reset();
-        //     _injection_process[c]->reset();
-        // }
-
-        if ( !_SingleSim( ) ) {
-            cout << "Simulation unstable, ending ..." << endl;
-            return false;
-        }
-
-        // _sim_state    = running;
-
-        // _ClearStats( );
-        // if ( !_SingleSim( ) ) {
-        //     cout << "Simulation unstable, ending ..." << endl;
-        //     return false;
-        // }
-
-
-        while( _PacketsOutstanding( ) ) {  // returns true if !_qdrained[s][c] 
-                _Step( ); 
-                _DisplayRemaining();
-        }
-	
-
-        #ifdef CALC_INJECTION_RATE
-            printf("================== Injection Rate Caclulations ===================\n");
-            printf("total execution time: %d cycles\n", _time);
-            printf("injected FLITS per node:\n");
-            for (int i = 0; i < 16; i++){
-            printf("\tnode %d: %d\n", i, cnt_flits[i]);
-            }
-            printf("calculating injected FLITS:\n");
-            printf("\t flits from ALL nodes:  %d \n", cnt_flit_total);
-            printf("\t flits / node:          %f \n", cnt_flit_total/16.0);
-            printf("\t flits / node / cycle:  %f \n", (cnt_flit_total/16.0)/(float)_time);
-            printf("calculating injected PACKETS\n");
-            printf("\t packets for all nodes:  %f \n", (cnt_flit_total/5.0));
-            printf("\t packets / node:         %f \n", ((cnt_flit_total/5.0)/16.0));
-            printf("\t packets / node / cycle: %f \n", (((cnt_flit_total/5.0)/16.0)/(float)_time));
-            printf("\n");
-
-            printf("generated FLITS per node:\n");
-            for (int i = 0; i < 16; i++){
-            printf("\tnode %d:  %d\n", i, cnt_gen_flits[i]);
-            }
-            printf("calculating generated FLITS:\n");
-            printf("\t flits from ALL nodes:  %d \n", cnt_gen_flit_total);
-            printf("\n");
-
-            printf("retired FLITS per node:\n");
-            for (int i = 0; i < 16; i++){
-            printf("\tnode %d:  %d\n", i, cnt_ret_flits[i]);
-            }
-            printf("calculating retired FLITS:\n");
-            printf("\t flits from ALL nodes:  %d \n", cnt_ret_flit_total);
-            printf("================================================================\n");
-            
-            printf("measured FLITS per node:\n");
-            for (int i = 0; i < 16; i++){
-            printf("\tnode %d:  %d\n", i, cnt_msr_flits[i]);
-            }
-            printf("calculating measured FLITS:\n");
-            printf("\t flits from ALL nodes:  %d \n", cnt_msr_flit_total);
-            printf("================================================================\n");
-            
-        #endif
-        // TODO: I need to keep the remaining packets for the 
-        // next simulation from zsim.
-
-        // Empty any remaining packets
-        _empty_network = true;
-        int empty_steps = 0;
-
-        bool packets_left = false;
-        for(int c = 0; c < _classes; ++c) {
-            packets_left |= !_total_in_flight_flits[c].empty();
-        }
-
-        while( packets_left ) { 
-            _Step( ); 
-
-            ++empty_steps;
-
-            if ( empty_steps % 1000 == 0 ) {
-                _DisplayRemaining( ); 
-            }
-      
-            packets_left = false;
-            for(int c = 0; c < _classes; ++c) {
-                packets_left |= !_total_in_flight_flits[c].empty();
-            }
-        }
-        //wait until all the credits are drained as well
-        while(Credit::OutStanding()!=0){
-            _Step();
-        }
-        _empty_network = false;
-
-        //for the love of god don't ever say "Time taken" anywhere else
-        //the power script depend on it
-        cout << "Time taken is " << _time << " cycles" <<endl; 
-
-        if(_stats_out) {
-            WriteStats(*_stats_out);
-        }
-        _UpdateOverallStats();
-    }
-  
-    DisplayOverallStats();
-    if(_print_csv_results) {
-        DisplayOverallStatsCSV();
-    }
-  
-    return true;
-}
 
 void TrafficManager::_UpdateOverallStats() {
     for ( int c = 0; c < _classes; ++c ) {
@@ -2400,11 +2078,10 @@ void TrafficManager::printInjectedPackets() {
      "++++++++++++++++++++++++++++++++++++++++++" << endl;
 }
 
-void TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr){
+int TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr, BookSimNetwork *nocAddr){
     // The packets here are used by zsim, so no warmup stage is needed.
     // In running stage, record is always one and the packets are also
     // inserted in the _measured_in_flight_flits vector as well.
-
     if (ctime < 0){
         ctime = _time;
     }
@@ -2421,19 +2098,33 @@ void TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, int
     Flit::FlitType packet_type = Flit::ANY_TYPE;
     // int size = _GetNextPacketSize(cl); //input size 
     int pid = _cur_pid++;
-    
-    // insert the request with the pid as its id to able to find it later with f->pid when retiring the packet
-    _in_flight_req_address.insert(make_pair(pid, addr));
+
+    _in_flight_req_address.insert(make_pair(pid,make_pair(nocAddr,addr) ));
     assert(_cur_pid);
     bool record = true; 
-    // TODO: watch value should be changed back
-    bool watch = gWatchOut && (_packets_to_watch.count(pid) > 0);
 
+#ifdef PRINT_ALL //print all packets
+    bool watch = 1;
+#else
+    bool watch =  gWatchOut && (_packets_to_watch.count(pid) > 0);
+#endif
     int subnetwork = ((packet_type == Flit::ANY_TYPE) ? 
                       RandomInt(_subnets-1) :
                       _subnet[packet_type]);
   
-  
+
+#if defined(_SKIP_STEP_) || defined(_EMPTY_STEP_)
+    // save the pid of the generated PACKET and the zll.
+    // we do not really need any other information
+    int dim = sqrt(_nodes);
+    int src_x = source%dim, src_y = source/dim;
+    int dst_x = dest%dim, dst_y = dest/dim;
+    int zll = (abs(dst_x-src_x) + abs(dst_y-src_y) + 1)*(4) + (5-1) + 50; // hoplatency = 4, flits/packet = 5, hack = 3
+
+    _in_flight_packets.insert(make_pair(pid, zll));
+#else
+
+
     for ( int i = 0; i < size; ++i ) { // input size
         Flit * f  = Flit::New(); //generate a new flit 
         f->id     = _cur_id++;
@@ -2445,6 +2136,7 @@ void TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, int
         f->ctime  = ctime; // the packet carries the _time that was created 
         f->record = record;
         f->cl     = cl;
+
 
         //contains all the newly generated flits. 
         // Note that this assignment happens BEFORE the f->head, f->dest, f->pri etc  are set
@@ -2491,4 +2183,8 @@ void TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, int
         cnt_gen_flit_total++;
         #endif
     }
+
+    outstandingFlits[subnetwork][source] += size;
+    return pid;
+#endif
 }

@@ -74,8 +74,11 @@ protected:
 
 #ifdef TRACK_FLOWS
   vector<vector<int> > _received_flits;
+  vector<int>          _received_flits_per_router;
   vector<vector<int> > _stored_flits;
+  vector<int>          _stored_flits_per_router;
   vector<vector<int> > _sent_flits;
+  vector<int>          _sent_flits_per_router;
   vector<vector<int> > _outstanding_credits;
   vector<vector<int> > _active_packets;
 #endif
@@ -90,6 +93,7 @@ protected:
 
   virtual void _InternalStep() = 0;
 
+  std::vector<int>* outstandingFlit; // counter indicating the outstanding flits in each router
 public:
   Router( const Configuration& config,
 	  Module *parent, const string & name, int id,
@@ -124,6 +128,11 @@ public:
   virtual int GetUsedCredit(int o) const = 0;
   virtual int GetBufferOccupancy(int i) const = 0;
 
+
+  void setOutstandingFlits(std::vector<int> *outstandingFlits){
+    this->outstandingFlit = outstandingFlits;
+  }
+
 #ifdef TRACK_BUFFERS
   virtual int GetUsedCreditForClass(int output, int cl) const = 0;
   virtual int GetBufferOccupancyForClass(int input, int cl) const = 0;
@@ -134,13 +143,25 @@ public:
     assert((c >= 0) && (c < _classes));
     return _received_flits[c];
   }
+  inline int const & GetReceivedFlitsPerRouter(int c) const {
+    assert((c >= 0) && (c < _classes));
+    return _received_flits_per_router[c];
+  }
   inline vector<int> const & GetStoredFlits(int c) const {
     assert((c >= 0) && (c < _classes));
     return _stored_flits[c];
   }
+  inline int const & GetStoredFlitsPerRouter(int c) const {
+    assert((c >= 0) && (c < _classes));
+    return _stored_flits_per_router[c];
+  }
   inline vector<int> const & GetSentFlits(int c) const {
     assert((c >= 0) && (c < _classes));
     return _sent_flits[c];
+  }
+  inline int const & GetSentFlitsPerRouter(int c) const {
+    assert((c >= 0) && (c < _classes));
+    return _sent_flits_per_router[c];
   }
   inline vector<int> const & GetOutstandingCredits(int c) const {
     assert((c >= 0) && (c < _classes));
@@ -155,7 +176,9 @@ public:
   inline void ResetFlowStats(int c) {
     assert((c >= 0) && (c < _classes));
     _received_flits[c].assign(_received_flits[c].size(), 0);
+    _received_flits_per_router.assign(_received_flits_per_router.size(), 0);
     _sent_flits[c].assign(_sent_flits[c].size(), 0);
+    _sent_flits_per_router[c] = 0;
   }
 #endif
 

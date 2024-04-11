@@ -44,7 +44,10 @@ class CC : public GlobAlloc {
         //Initialization
         virtual void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) = 0;
         virtual g_vector<MemObject*> getParents() = 0;
+        virtual void addChild(BaseCache* child, zsimNetwork* network) = 0;
+        virtual void addChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) = 0;
         virtual void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) = 0;
+        virtual uint32_t getChildrenNum() = 0;
         virtual void setGrandChildren(const g_vector<BaseCache*>& granChildren) = 0;
         virtual void incrNumGrandChildren(const int numGrandChildren) = 0;
         virtual void initStats(AggregateStat* cacheStat) = 0;
@@ -58,7 +61,9 @@ class CC : public GlobAlloc {
 
         //Inv methods
         virtual void startInv() = 0;
+        virtual void endInv(){};
         virtual uint64_t processInv(const InvReq& req, int32_t lineId, uint64_t startCycle) = 0;
+        virtual MemObject* getParent(Address lineAddr) = 0;
 
         //Repl policy interface
         virtual uint32_t numSharers(uint32_t lineId) = 0;
@@ -89,6 +94,7 @@ class MESIBottomCC : public GlobAlloc {
         g_vector<uint32_t> parentRTTs;
         uint32_t numLines;
         uint32_t selfId;
+        const char* name;
 
         //Profiling counters
         Counter profGETSHit, profGETSMiss, profGETXHit, profGETXMissIM /*from invalid*/, profGETXMissSM /*from S, i.e. upgrade misses*/;
@@ -113,7 +119,11 @@ class MESIBottomCC : public GlobAlloc {
             futex_init(&ccLock);
         }
 
+        MemObject* getParent( Address lineAddr){return parents[getParentId(lineAddr)];}
+
         void init(const g_vector<MemObject*>& _parents, zsimNetwork* network, const char* name);
+        const char* getName() {return name;}
+        void setName(const char* name_in) {name = name_in;}
         g_vector<MemObject*> getParents();
 
         inline bool isExclusive(uint32_t lineId) {
@@ -149,9 +159,9 @@ class MESIBottomCC : public GlobAlloc {
             parentStat->append(&profGETNetLat);
         }
 
-        uint64_t processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle, uint32_t srcId);
+        uint64_t processEviction(Address wbLineAddr, uint32_t lineId, bool lowerLevelWriteback, uint64_t cycle, uint32_t srcId, coordinates<int> nocCoord);
 
-        uint64_t processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle, uint32_t srcId, uint32_t flags);
+        uint64_t processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint64_t cycle, uint32_t srcId, uint32_t flags, bool nocRequest, coordinates<int> nocCoord);
 
         void processWritebackOnAccess(Address lineAddr, uint32_t lineId, AccessType type);
 
@@ -202,6 +212,9 @@ class MESITopCC : public GlobAlloc {
             }
         };
 
+
+        const char* name;
+
         Entry* array;
         g_vector<BaseCache*> children;
         g_vector<BaseCache*> grandChildren;
@@ -226,18 +239,28 @@ class MESITopCC : public GlobAlloc {
             futex_init(&ccLock);
         }
 
+        MemObject* getParent( Address lineAddr){return nullptr;}
         void init(const g_vector<BaseCache*>& _children, zsimNetwork* network, const char* name);
+        const char* getName() {return name;}
+        void setName(const char* name_in) {name = name_in;}
+        
+        void add(BaseCache* child, zsimNetwork* network, const char* name);
+
+        void add(const g_vector<BaseCache*>& _children, zsimNetwork* network, const char* name);
+
+
+        uint32_t getChildrenNum() {return children.size();}
         void setGrandChildren(const g_vector<BaseCache*>& _grandChildren);
         void incrNumGrandChildren(const int _numGrandChildren){
             numGrandChildren += _numGrandChildren;
         }
 
-        uint64_t processEviction(Address wbLineAddr, uint32_t lineId, bool* reqWriteback, uint64_t cycle, uint32_t srcId);
+        uint64_t processEviction(Address wbLineAddr, uint32_t lineId, bool* reqWriteback, uint64_t cycle, uint32_t srcId, bool nocReq, uint32_t nocChildId);
 
         uint64_t processAccess(Address lineAddr, uint32_t lineId, AccessType type, uint32_t childId, bool haveExclusive,
-                MESIState* childState, bool* inducedWriteback, uint64_t cycle, uint32_t srcId, uint32_t flags);
+                MESIState* childState, bool* inducedWriteback, uint64_t cycle, uint32_t srcId, uint32_t flags, bool nocReq, uint32_t nocChildId);
 
-        uint64_t processInval(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId);
+        uint64_t processInval(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId, bool nocReq, uint32_t nocChildId);
 
         inline void lock() {
             futex_lock(&ccLock);
@@ -253,7 +276,7 @@ class MESITopCC : public GlobAlloc {
         }
 
     private:
-        uint64_t sendInvalidates(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId);
+        uint64_t sendInvalidates(Address lineAddr, uint32_t lineId, InvType type, bool* reqWriteback, uint64_t cycle, uint32_t srcId, bool nocReq, uint32_t nocChildId);
 };
 
 static inline bool CheckForMESIRace(AccessType& type, MESIState* state, MESIState initialState) {
@@ -308,9 +331,25 @@ class MESICC : public CC {
             return bcc->getParents();
         }
         
+
+        uint32_t getChildrenNum(){
+            return tcc->getChildrenNum();
+        }
+
+
         void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
             tcc = new MESITopCC(numLines, nonInclusiveHack);
             tcc->init(children, network, name.c_str());
+        }
+
+        void addChild(BaseCache* child, zsimNetwork* network) {
+            assert(tcc != nullptr);
+            tcc->add(child, network, name.c_str());
+        }
+
+        void addChildren(const g_vector<BaseCache*>& children, zsimNetwork* network){
+            assert(tcc != nullptr);
+            tcc->add(children, network, name.c_str());
         }
 
         void setGrandChildren(const g_vector<BaseCache*>& grandChildren) {
@@ -363,8 +402,8 @@ class MESICC : public CC {
 
         uint64_t processEviction(const MemReq& triggerReq, Address wbLineAddr, int32_t lineId, uint64_t startCycle) {
             bool lowerLevelWriteback = false;
-            uint64_t evCycle = tcc->processEviction(wbLineAddr, lineId, &lowerLevelWriteback, startCycle, triggerReq.srcId); //1. if needed, send invalidates/downgrades to lower level
-            evCycle = bcc->processEviction(wbLineAddr, lineId, lowerLevelWriteback, evCycle, triggerReq.srcId); //2. if needed, write back line to upper level
+            uint64_t evCycle = tcc->processEviction(wbLineAddr, lineId, &lowerLevelWriteback, startCycle, triggerReq.srcId, triggerReq.nocReq, triggerReq.nocChildId); //1. if needed, send invalidates/downgrades to lower level
+            evCycle = bcc->processEviction(wbLineAddr, lineId, lowerLevelWriteback, evCycle, triggerReq.srcId, triggerReq.nocCoord); //2. if needed, write back line to upper level
             return evCycle;
         }
 
@@ -386,14 +425,14 @@ class MESICC : public CC {
                 uint32_t flags = req.flags & ~MemReq::PREFETCH; //always clear PREFETCH, this flag cannot propagate up
 
                 //if needed, fetch line or upgrade miss from upper level
-                respCycle = bcc->processAccess(req.lineAddr, lineId, req.type, startCycle, req.srcId, flags);
+                respCycle = bcc->processAccess(req.lineAddr, lineId, req.type, startCycle, req.srcId, flags, req.nocReq, req.nocCoord);
                 if (getDoneCycle) *getDoneCycle = respCycle;
                 if (!isPrefetch) { //prefetches only touch bcc; the demand request from the core will pull the line to lower level
                     //At this point, the line is in a good state w.r.t. upper levels
                     bool lowerLevelWriteback = false;
                     //change directory info, invalidate other children if needed, tell requester about its state
                     respCycle = tcc->processAccess(req.lineAddr, lineId, req.type, req.childId, bcc->isExclusive(lineId), req.state,
-                            &lowerLevelWriteback, respCycle, req.srcId, flags);
+                            &lowerLevelWriteback, respCycle, req.srcId, flags, req.nocReq, req.nocChildId);
                     if (lowerLevelWriteback) {
                         //Essentially, if tcc induced a writeback, bcc may need to do an E->M transition to reflect that the cache now has dirty data
                         bcc->processWritebackOnAccess(req.lineAddr, lineId, req.type);
@@ -418,8 +457,11 @@ class MESICC : public CC {
             bcc->lock(); //note we don't grab tcc; tcc serializes multiple up accesses, down accesses don't see it
         }
 
+        MemObject* getParent( Address lineAddr ){return bcc->getParent(lineAddr);}
+
+
         uint64_t processInv(const InvReq& req, int32_t lineId, uint64_t startCycle) {
-            uint64_t respCycle = tcc->processInval(req.lineAddr, lineId, req.type, req.writeback, startCycle, req.srcId); //send invalidates or downgrades to children
+            uint64_t respCycle = tcc->processInval(req.lineAddr, lineId, req.type, req.writeback, startCycle, req.srcId, req.nocReq, req.nocChildId); //send invalidates or downgrades to children
             bcc->processInval(req.lineAddr, lineId, req.type, req.writeback); //adjust our own state
 
             bcc->unlock();
@@ -447,13 +489,27 @@ class MESITerminalCC : public CC {
             bcc->init(parents, network, name.c_str());
         }
 
+        void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
+            panic("[%s] MESITerminalCC::setChildren cannot be called -- terminal caches cannot have children!", name.c_str());
+        }
+
+        void addChild(BaseCache* child, zsimNetwork* network) {
+            panic("[%s] MESITerminalCC::addChild cannot be called -- terminal caches cannot have a child!", name.c_str());
+        }
+
+        void addChildren(const g_vector<BaseCache*>& children, zsimNetwork* network){
+            panic("[%s] MESITerminalCC::addChildren cannot be called -- terminal caches cannot have children!", name.c_str());
+        }
+
+        virtual uint32_t getChildrenNum(){
+            panic("[%s] MESITerminalCC::getChildrenNum cannot be called -- terminal caches don't have children!", name.c_str());
+        }
+
         g_vector<MemObject*> getParents(){
             return bcc->getParents();
         }
 
-        void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) {
-            panic("[%s] MESITerminalCC::setChildren cannot be called -- terminal caches cannot have children!", name.c_str());
-        }
+        MemObject* getParent( Address lineAddr){return bcc->getParent(lineAddr);}
 
         void initStats(AggregateStat* cacheStat) {
             bcc->initStats(cacheStat);
@@ -486,7 +542,7 @@ class MESITerminalCC : public CC {
 
         uint64_t processEviction(const MemReq& triggerReq, Address wbLineAddr, int32_t lineId, uint64_t startCycle) {
             bool lowerLevelWriteback = false;
-            uint64_t endCycle = bcc->processEviction(wbLineAddr, lineId, lowerLevelWriteback, startCycle, triggerReq.srcId); //2. if needed, write back line to upper level
+            uint64_t endCycle = bcc->processEviction(wbLineAddr, lineId, lowerLevelWriteback, startCycle, triggerReq.srcId, triggerReq.nocCoord); //2. if needed, write back line to upper level
             return endCycle;  // critical path unaffected, but TimingCache needs it
         }
 
@@ -494,7 +550,7 @@ class MESITerminalCC : public CC {
             assert(lineId != -1);
             assert(!getDoneCycle);
             //if needed, fetch line or upgrade miss from upper level
-            uint64_t respCycle = bcc->processAccess(req.lineAddr, lineId, req.type, startCycle, req.srcId, req.flags);
+            uint64_t respCycle = bcc->processAccess(req.lineAddr, lineId, req.type, startCycle, req.srcId, req.flags, req.nocReq, req.nocCoord);
             //at this point, the line is in a good state w.r.t. upper levels
             return respCycle;
         }

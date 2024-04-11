@@ -30,6 +30,7 @@
 
 #include <list>
 #include <map>
+#include <unordered_map>
 #include <set>
 #include <cassert>
 
@@ -48,6 +49,7 @@
 
 //register the requests to a node
 class PacketReplyInfo;
+class BookSimNetwork;
 
 typedef booksim::CallbackBase<void,unsigned,uint64_t,uint64_t> Callback_t;
 
@@ -60,11 +62,13 @@ private:
   vector<int> _packet_size_max_val;
   int stepsBeforeUpdateStats;
   InterconnectInterface* parent;
+  int cntStepCalls = 0; 
+  vector<vector<int>> outstandingFlits;
 protected:
 
   int nocFrequencyMHz;
 
-  map<int, uint64_t> _in_flight_req_address;
+  std::unordered_map<int,std::pair<BookSimNetwork*, uint64_t>> _in_flight_req_address;
 
   int _nodes;
   int _routers;
@@ -127,6 +131,11 @@ protected:
   vector<map<int, Flit *> > _total_in_flight_flits;
   vector<map<int, Flit *> > _measured_in_flight_flits;
   vector<map<int, Flit *> > _retired_packets;
+
+#if defined(_SKIP_STEP_) || defined(_EMPTY_STEP_)
+  map<int, int> _in_flight_packets;
+#endif
+
   bool _empty_network;
 
   bool _hold_switch_for_packet;
@@ -285,13 +294,9 @@ protected:
 
   void _ComputeStats( const vector<int> & stats, int *sum, int *min = NULL, int *max = NULL, int *min_pos = NULL, int *max_pos = NULL ) const;
 
-  virtual bool _SingleSim( );
-
   void _DisplayRemaining( ostream & os = cout ) const;
   
   void _LoadWatchList(const string & filename);
-
-  virtual void _UpdateOverallStats();
 
   virtual string _OverallStatsCSV(int c = 0) const;
 
@@ -302,9 +307,9 @@ public:
   int _time; //simulation time. Increases at end of each step() TODO: make it private again
   void _Step( );
   int getVCs(){ return _vcs;}
+  int getNodes(){ return _nodes;}
   void _ManuallyInjectPacket(int source, int dest, int size, int ctime);
-  void _ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr);
-  void _ManuallySetQdrained();
+  int _ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr, BookSimNetwork *nocAddr);
 
   static TrafficManager * New(Configuration const & config, 
 			      vector<Network *> const & net, InterconnectInterface* parentInterface);
@@ -312,19 +317,23 @@ public:
   TrafficManager( const Configuration &config, const vector<Network *> & net, InterconnectInterface* parentInterface);
   virtual ~TrafficManager( );
 
-  bool Run( );
   void printInjectedPackets();
   virtual void WriteStats( ostream & os = cout ) const ;
   virtual void UpdateStats( ) ;
+  virtual void _UpdateOverallStats();
   virtual void DisplayStats( ostream & os = cout ) const ;
   virtual void DisplayOverallStats( ostream & os = cout ) const ;
   virtual void DisplayOverallStatsCSV( ostream & os = cout ) const ;
 
   inline int getTime() { return _time;}
+  inline void incrTime() {  ++_time;}
+  inline void updateDrainTime() {_drain_time = _time;}
   Stats * getStats(const string & name) { return _stats[name]; }
 
   int GetStepsBeforeUpdateStats(){ return stepsBeforeUpdateStats;}
   void Init();
+
+  int getCntStepCalls(){return cntStepCalls;}
 };
 
 template<class T>

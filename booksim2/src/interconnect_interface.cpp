@@ -71,7 +71,7 @@ InterconnectInterface::~InterconnectInterface()
 
 void InterconnectInterface::CreateInterconnect()
 {
-  curCycle = 0;
+  nocCurCycle = 0;
 
   InitializeRoutingMap(*_icnt_config);
 
@@ -102,6 +102,8 @@ void InterconnectInterface::CreateInterconnect()
 
   // assert(_icnt_config->GetStr("sim_type") == "gpgpusim");
   _traffic_manager = TrafficManager::New( *_icnt_config, _net, this) ;
+  iN = _traffic_manager->getNodes();
+  dim = sqrt(iN);
   _flit_size = _icnt_config->GetInt( "flit_size" );
 
   // Config for interface buffers
@@ -120,6 +122,15 @@ void InterconnectInterface::CreateInterconnect()
   }
 
   nocFrequencyMHz = _icnt_config->GetInt("noc_frequency_mhz");
+  packetSize      = _icnt_config->GetInt("packet_size");
+
+  int routing_delay  = _icnt_config->GetInt("routing_delay");
+  int crossbar_delay = _icnt_config->GetInt("st_prepare_delay") + _icnt_config->GetInt("st_final_delay");
+  const int link_delay = 1;
+  int vc_alloc_delay = _icnt_config->GetInt("vc_alloc_delay");
+  int sw_alloc_delay = _icnt_config->GetInt("sw_alloc_delay");
+  hopDelay =  routing_delay + crossbar_delay + link_delay + 
+          + (_icnt_config->GetInt("speculative") ? max(vc_alloc_delay, sw_alloc_delay) : (vc_alloc_delay + sw_alloc_delay));
 
   _vcs = _icnt_config->GetInt("num_vcs");
 
@@ -128,6 +139,8 @@ void InterconnectInterface::CreateInterconnect()
   stepsBeforeUpdateStats = _traffic_manager->GetStepsBeforeUpdateStats();
   stepsCnt = 0;
 
+  totalInFlightPackets = 0;
+
 }
 
 void InterconnectInterface::Init()
@@ -135,15 +148,38 @@ void InterconnectInterface::Init()
   _traffic_manager->Init();
 }
 
-void InterconnectInterface::ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr){
-  _traffic_manager->_ManuallyGeneratePacket(source,  dest,  size,  ctime, addr);
+int InterconnectInterface::ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr, BookSimNetwork *nocAddr){
+    outStandingPackets++;
+    int packId = _traffic_manager->_ManuallyGeneratePacket(source,  dest,  size,  ctime, addr, nocAddr);
+    return packId;
+  }
+
+void InterconnectInterface::UpdateStats()
+{
+  _traffic_manager->UpdateStats();
 }
 
 void InterconnectInterface::DisplayStats()
 {
-  _traffic_manager->UpdateStats();
-//   _traffic_manager->DisplayStats();
+  _traffic_manager->DisplayStats();
 }
+
+void InterconnectInterface::DisplayOverallStats()
+{
+  // hack: booksim2 use _drain_time and calculate delta time based on it, but we don't, change this if you have a better idea
+  _traffic_manager->updateDrainTime();
+  // hack: also _total_sims equals to number of kernel calls
+
+  _traffic_manager->_UpdateOverallStats();
+  _traffic_manager->DisplayOverallStats();
+
+  double skippedPerc = (100.0*skippedSteps)/(skippedSteps+nonSkippedSteps);
+        std::cout << "Number of non-skipped steps = " << nonSkippedSteps << std::endl
+                  << "Number of skipped steps = " << skippedSteps 
+                      << " ( " <<  std::round(skippedPerc * 100)/100 <<  " \% )" << std::endl
+                  << "Total steps = " << skippedSteps + nonSkippedSteps << std::endl;
+}
+
 
 int InterconnectInterface::GetIcntTime() const
 {
@@ -173,22 +209,44 @@ void InterconnectInterface::_CreateBuffer()
 }
 
 int cntprints = 0;
+
 void InterconnectInterface::Step(){
+#ifndef _NO_OPT_
+  if(outStandingPackets == 0){
+    skippedSteps++;
+    _traffic_manager->incrTime(); // TODO: do I really need that or is it OK if the noc has a different clock?
+    return;
+  }
+#endif
+  nonSkippedSteps++;
+  cntStepCalls++;
   _traffic_manager->_Step();
-  if (++stepsCnt == stepsBeforeUpdateStats){
-    DisplayStats();
+
+#if !defined(_SKIP_STEP_) && !defined(_EMPTY_STEP_)
+  if (++stepsCnt >= stepsBeforeUpdateStats){
+    UpdateStats();
+    // DisplayStats();
     stepsCnt = 0;
   }
+#endif
 }
 
-void InterconnectInterface::RegisterCallbacksInterface(Callback_t *readDone, Callback_t *writeDone){
-  // _traffic_manager->RegisterCallbacks(readDone, writeDone); 
-  ReturnReadData.push_back(readDone);
-	WriteDataDone = writeDone;
+void InterconnectInterface::RegisterCallbacksInterface(Callback_t *readDone, Callback_t *writeDone, BookSimNetwork *nocAddr){
+  ReturnReadData.insert(std::make_pair(nocAddr, readDone));
+  WriteDataDone = writeDone;
 }
 
-void InterconnectInterface::CallbackEverything(uint64_t addr){
-  for (auto& callback : ReturnReadData) {
-    callback->operator()(0, addr, 1);
+
+void InterconnectInterface::CallbackEverything(int pid, BookSimNetwork *nocAddr){
+  outStandingPackets--;
+  for (auto& iter: ReturnReadData) {
+    if(iter.first == nocAddr){
+      iter.second->operator()(0, pid, 1);
+      return;
+    }
   }
+
+  std::cout << "no callback sent" << std::endl;
 }
+
+int InterconnectInterface::getNodes(){ return iN;}

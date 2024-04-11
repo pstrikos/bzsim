@@ -71,8 +71,11 @@ TimedModule( parent, name ), _id( id ), _inputs( inputs ), _outputs( outputs ),
 
 #ifdef TRACK_FLOWS
   _received_flits.resize(_classes, vector<int>(_inputs, 0));
+  _received_flits_per_router.resize(_classes, 0);
   _stored_flits.resize(_classes);
+  _stored_flits_per_router.resize(_classes, 0);
   _sent_flits.resize(_classes, vector<int>(_outputs, 0));
+  _sent_flits_per_router.resize(_classes, 0);
   _active_packets.resize(_classes);
   _outstanding_credits.resize(_classes, vector<int>(_outputs, 0));
 #endif
@@ -104,6 +107,9 @@ void Router::AddOutputChannel( FlitChannel *channel, CreditChannel *backchannel 
 
 void Router::Evaluate( )
 {
+  if(outstandingFlit[0][this->_id] == 0){
+    return;
+  }
   _partial_internal_cycles += _internal_speedup;
   while( _partial_internal_cycles >= 1.0 ) {
     _InternalStep( );
