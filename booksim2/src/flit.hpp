@@ -33,6 +33,7 @@
 
 #include "booksim.hpp"
 #include "outputset.hpp"
+#include "globals.hpp"
 
 class Flit {
 
@@ -53,9 +54,9 @@ public:
   bool head;
   bool tail;
   
-  int  ctime;
-  int  itime;
-  int  atime;
+  simTime  ctime;
+  simTime  itime;
+  simTime  atime;
 
   int  id;
   int  pid;

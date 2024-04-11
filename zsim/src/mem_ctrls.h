@@ -47,6 +47,7 @@ class SimpleMemory : public MemObject {
         void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network){assert(0);}
     void setCoord(const coordinates<int> coord) {panic("Should never be called");};
     coordinates<int> getCoord(){panic("Should never be called");};
+    coordinates<int> getCoord(MemReq& req){panic("Should never be called");};
 };
 
 
@@ -98,6 +99,7 @@ class MD1Memory : public MemObject {
         void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network){assert(0);}
         void setCoord(const coordinates<int> coord) {panic("Should never be called");};
         coordinates<int> getCoord(){panic("Should never be called");};
+        coordinates<int> getCoord(MemReq& req){panic("Should never be called");};
 
         const char* getName() {return name.c_str();}
     private:

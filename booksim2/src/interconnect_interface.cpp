@@ -148,7 +148,7 @@ void InterconnectInterface::Init()
   _traffic_manager->Init();
 }
 
-int InterconnectInterface::ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr, BookSimNetwork *nocAddr){
+int InterconnectInterface::ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr){
     outStandingPackets++;
     int packId = _traffic_manager->_ManuallyGeneratePacket(source,  dest,  size,  ctime, addr, nocAddr);
     return packId;
@@ -181,7 +181,7 @@ void InterconnectInterface::DisplayOverallStats()
 }
 
 
-int InterconnectInterface::GetIcntTime() const
+simTime InterconnectInterface::GetIcntTime() const
 {
   return _traffic_manager->_time;
 }

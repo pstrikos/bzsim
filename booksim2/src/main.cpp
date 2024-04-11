@@ -62,7 +62,7 @@
 
 InterconnectInterface *nocInterface;
 
-int GetSimTime() {
+simTime GetSimTime() {
   return (nocInterface != nullptr) ? nocInterface->GetIcntTime() : -1;
 }
 

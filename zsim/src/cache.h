@@ -69,6 +69,7 @@ class Cache : public BaseCache {
         void addChildren(const g_vector<BaseCache*>& children, zsimNetwork* network);
         void setCoord(const coordinates<int> _coord) {coord = _coord;};
         coordinates<int> getCoord(){return coord;};
+        coordinates<int> getCoord(MemReq& req){return coord;};
 
         void incrNumGrandChildren(const int numGrandChildren);
         g_vector<MemObject*> getParents();

@@ -737,10 +737,10 @@ void TrafficManager::_RetireFlit( Flit *f, int dest )
        (_flat_stats[f->cl]->Max() < (f->atime - f->itime)))
         _slowest_flit[f->cl] = f->id;
 
-    _flat_stats[f->cl]->AddSample( f->atime - f->itime);
+    _flat_stats[f->cl]->AddSample( (double) (f->atime - f->itime));
    
     if(_pair_stats){
-        _pair_flat[f->cl][f->src*_nodes+dest]->AddSample( f->atime - f->itime );
+        _pair_flat[f->cl][f->src*_nodes+dest]->AddSample( (double) (f->atime - f->itime) );
     }
       
     if ( f->tail ) {
@@ -793,13 +793,13 @@ void TrafficManager::_RetireFlit( Flit *f, int dest )
             if((_slowest_packet[f->cl] < 0) ||
                (_plat_stats[f->cl]->Max() < (f->atime - head->itime)))
                 _slowest_packet[f->cl] = f->pid;
-            _plat_stats[f->cl]->AddSample( f->atime - head->ctime);
-            _nlat_stats[f->cl]->AddSample( f->atime - head->itime);
-            _frag_stats[f->cl]->AddSample( (f->atime - head->atime) - (f->id - head->id) );
+            _plat_stats[f->cl]->AddSample( (double) (f->atime - head->ctime));
+            _nlat_stats[f->cl]->AddSample( (double) (f->atime - head->itime));
+            _frag_stats[f->cl]->AddSample( (double) ((f->atime - head->atime) - (f->id - head->id) ));
    
             if(_pair_stats){
-                _pair_plat[f->cl][f->src*_nodes+dest]->AddSample( f->atime - head->ctime );
-                _pair_nlat[f->cl][f->src*_nodes+dest]->AddSample( f->atime - head->itime );
+                _pair_plat[f->cl][f->src*_nodes+dest]->AddSample( (double) (f->atime - head->ctime) );
+                _pair_nlat[f->cl][f->src*_nodes+dest]->AddSample( (double) (f->atime - head->itime) );
             }
         }
     
@@ -2078,7 +2078,7 @@ void TrafficManager::printInjectedPackets() {
      "++++++++++++++++++++++++++++++++++++++++++" << endl;
 }
 
-int TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr, BookSimNetwork *nocAddr){
+int TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr){
     // The packets here are used by zsim, so no warmup stage is needed.
     // In running stage, record is always one and the packets are also
     // inserted in the _measured_in_flight_flits vector as well.

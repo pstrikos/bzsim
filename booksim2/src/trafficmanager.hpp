@@ -228,8 +228,8 @@ protected:
 
   bool _measure_latency;
 
-  int   _reset_time;
-  int   _drain_time;
+  simTime   _reset_time;
+  simTime  _drain_time;
 
   int   _total_sims;
   int   _sample_period;
@@ -304,12 +304,12 @@ protected:
   double _GetAveragePacketSize(int cl) const;
 
 public:
-  int _time; //simulation time. Increases at end of each step() TODO: make it private again
+  simTime _time; //simulation time. Increases at end of each step() TODO: make it private again
   void _Step( );
   int getVCs(){ return _vcs;}
   int getNodes(){ return _nodes;}
   void _ManuallyInjectPacket(int source, int dest, int size, int ctime);
-  int _ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr, BookSimNetwork *nocAddr);
+  int _ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr);
 
   static TrafficManager * New(Configuration const & config, 
 			      vector<Network *> const & net, InterconnectInterface* parentInterface);

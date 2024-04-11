@@ -117,7 +117,7 @@ bool BatchTrafficManager::_SingleSim( )
     _last_id = -1;
     _last_pid = -1;
     _sim_state = running;
-    int start_time = _time;
+    simTime start_time = _time;
     bool batch_complete;
     cout << "Sending batch " << batch_index + 1 << " (" << _batch_size << " packets)..." << endl;
     do {
@@ -135,7 +135,7 @@ bool BatchTrafficManager::_SingleSim( )
     } while(!batch_complete);
     cout << "Batch injected. Time used is " << _time - start_time << " cycles." << endl;
 
-    int sent_time = _time;
+    simTime sent_time = _time;
     cout << "Waiting for batch to complete..." << endl;
 
     int empty_steps = 0;
@@ -164,7 +164,7 @@ bool BatchTrafficManager::_SingleSim( )
     cout << "Batch received. Time used is " << _time - sent_time << " cycles." << endl
 	 << "Last packet was " << _last_pid << ", last flit was " << _last_id << "." << endl;
 
-    _batch_time->AddSample(_time - start_time);
+    _batch_time->AddSample((double)(_time - start_time));
 
     cout << _sim_state << endl;
 

@@ -332,6 +332,7 @@ class MemControllerBase : public MemObject {
 
         void setCoord(const coordinates<int> coord) {panic("Should never be called");};
         coordinates<int> getCoord(){panic("Should never be called");};
+        coordinates<int> getCoord(MemReq& req){panic("Should never be called");};
 };
 
 // DRAM access event base class

@@ -55,7 +55,7 @@ public:
   static InterconnectInterface* New(const char* const config_file);
   void CreateInterconnect();
   
-  int ManuallyGeneratePacket(int source, int dest, int size, int ctime, uint64_t addr, BookSimNetwork *nocAddr);
+  int ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr);
   void Step();
 
   void RegisterCallbacksInterface(booksim::TransactionCompleteCB *readDone, booksim::TransactionCompleteCB *writeDone, BookSimNetwork *nocAddr);
@@ -66,7 +66,7 @@ public:
   void DisplayStats();
   void DisplayOverallStats();
   
-  int GetIcntTime() const;
+  simTime GetIcntTime() const;
   int getNocFrequency(){return nocFrequencyMHz;}
   int getPacketSize(){ return packetSize;}
   int getHopDelay(){ return hopDelay;}

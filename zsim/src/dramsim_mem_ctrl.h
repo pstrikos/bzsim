@@ -80,6 +80,8 @@ class DRAMSimMemory : public MemObject { //one DRAMSim controller
 
         void setCoord(const coordinates<int> _coord) {coord = _coord;};
         coordinates<int> getCoord(){return coord;};
+        coordinates<int> getCoord(MemReq& req){return coord;};
+
     
         void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network){}
     private:
@@ -128,6 +130,13 @@ class SplitAddrMemory : public MemObject {
 
         void setCoord(const coordinates<int> _coord) {panic("Should never be called");};
         coordinates<int> getCoord(){panic("Should never be called");};
+
+        // Returns the network coordinates of the correct memory controller based on the request's address 
+        coordinates<int> getCoord(MemReq& req){
+                uint32_t mem = req.lineAddr % mems.size();  // TODO: more tests...
+                return mems[mem]->getCoord();
+        };
+
 };
 
 #endif  // DRAMSIM_MEM_CTRL_H_

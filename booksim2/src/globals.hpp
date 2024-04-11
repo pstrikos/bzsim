@@ -36,7 +36,8 @@
 class InterconnectInterface;
 extern InterconnectInterface *nocInterface;
 
-int GetSimTime();
+typedef long long int simTime;
+simTime GetSimTime();
 
 class Stats;
 Stats * GetStats(const std::string & name);

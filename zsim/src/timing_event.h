@@ -69,7 +69,7 @@ class TimingEvent {
         uint64_t privCycle; //only touched by ContentionSim
 
     public:
-        std::string name;
+        g_string name;
         TimingEvent* next; //used by PrioQueue --- PRIVATE
     private:
         EventState state;

@@ -136,6 +136,7 @@ class MemObject : public GlobAlloc {
         virtual void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) = 0;
         virtual void setCoord(const coordinates<int> coord) = 0;
         virtual coordinates<int> getCoord() = 0;
+        virtual coordinates<int> getCoord(MemReq& req) = 0;
 };
 
 /* Base class for all cache objects */

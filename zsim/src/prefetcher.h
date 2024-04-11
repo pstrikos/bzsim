@@ -119,6 +119,7 @@ class StreamPrefetcher : public BaseCache {
         g_vector<MemObject*> getParents() {panic("Should never be called");};
         void setCoord(const coordinates<int> coord) {panic("Should never be called");};
         coordinates<int> getCoord(){panic("Should never be called");};
+        coordinates<int> getCoord(MemReq& req){panic("Should never be called");};
 };
 
 #endif  // PREFETCHER_H_

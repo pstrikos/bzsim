@@ -7,6 +7,7 @@
 #include "timing_event.h"
 #include "coord.h"
 
+class SplitAddrMemory;
 
 class BookSimAccEvent : public TimingEvent {
     private:
@@ -68,7 +69,6 @@ BookSimNetwork::BookSimNetwork(const char* _name, int _id, InterconnectInterface
 
 void BookSimNetwork::enqueueTickEvent(){
     TickEvent<BookSimNetwork>* tickEv = new TickEvent<BookSimNetwork>(this, domain);
-    tickEv->name = "booksimTickEvent0";
     tickEv->queue(0);  // start the sim at time 0
 }
 
@@ -107,13 +107,12 @@ uint64_t BookSimNetwork::access(MemReq& req) {
         
         startAccess(req);
     
-        // The request (req) that is passed, contains an 'address'.
-        // Here, we will get that address and do the following:
-        // 1) translate it in network address
+        // The request (req) that is passed, contains an 'address', based on which, we do the following:
+        // 1) translate it in network address. If there are multiple MCs, the splitter contacts the correct one
         // 2) create a doubleCoord that will later be stored in booksimAccEv->coord
         // 3) use them to calculate zll
-        coordinates<int> src = req.nocCoord;
-        coordinates<int> dst = parents[0]->getCoord();
+        coordinates<int> src = req.nocCoord;    
+        coordinates<int> dst = parents[0]->getCoord(req);
         uint64_t respCycle = req.cycle;
 
         AccessType type = req.type;
@@ -174,14 +173,12 @@ uint64_t BookSimNetwork::access(MemReq& req) {
         BookSimAccEvent* nocEvT = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, isWrite, addr, domain);
 
         nocEvT->setMinStartCycle(req.cycle);
-        nocEvT->name = "nocEventTransmit_" + std::to_string(id) + "_" +  std::to_string(namecnt++);
         nocEvT->setCoord(coordT); 
         nocEvT->setZll(zll);
         respCycle += nextLevelLat; 
         BookSimAccEvent* nocEvR = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, isWrite, addr, domain);
         
         nocEvR->setMinStartCycle(respCycle);
-        nocEvR->name = "nocEventRespond_" + std::to_string(id) + "_" +  std::to_string(namecnt++);
         nocEvR->setCoord(coordR);
         nocEvR->setZll(zll);
 
@@ -325,7 +322,6 @@ uint64_t BookSimNetwork::invalidate(const InvReq& req){
     BookSimAccEvent* nocEvInvT = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, 0, req.lineAddr, 0, true);
     
     nocEvInvT->setMinStartCycle(respCycle); // the packet is injected when the nocs parent calls the inval function
-    nocEvInvT->name = "nocEventInvalidateT_" + std::to_string(id) + "_" +  std::to_string(namecnt++);
     nocEvInvT->setCoord(coordInvT);
     nocEvInvT->setZll(zll);
 
@@ -349,7 +345,6 @@ uint64_t BookSimNetwork::invalidate(const InvReq& req){
     BookSimAccEvent* nocEvInvR = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, 0, request.lineAddr, 0, true);
     
     nocEvInvR->setMinStartCycle(respCycle); // the packet is injected when the nocs parent calls the inval function
-    nocEvInvR->name = "nocEventInvalidateR_" + std::to_string(id) + "_" +  std::to_string(namecnt++);
     nocEvInvR->setCoord(coordInvR);
     nocEvInvR->setZll(zll);
 
