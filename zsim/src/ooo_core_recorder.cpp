@@ -219,9 +219,22 @@ void OOOCoreRecorder::recordAccess(uint64_t curCycle, uint64_t dispatchCycle, ui
 
     if (IsGet(tr.type)) {
         assert(tr.endEvent);
+        assert(tr.startEvent);
         //info("Handling GET: curCycle %ld ev(reqCycle %ld respCycle %ld) respCycle %ld", curCycle, tr.reqCycle, tr.respCycle, respCycle);
 
         addIssueEvent(curCycle);
+
+        /* Creates three delay events: dDisp, dispEv and dUp
+           to bridge the difference in cycle between the curCycle and the cycle the tr.start events actually begins.
+           dDisp is the one that starts at curCycle 
+           dispEv starts at dispatch cycle, which is the cylce l1 was called.
+           dUp is the one starts at tr.startCycle but has no latency
+           curCycle is also when the lastEvProduced finishes, so after creating these three delay events,
+           they are connected to the lastEvProduced and with the tr.startEvent
+
+           Finally one more delay event is added: respEvent, to bridge the difference between the last created event and 
+           the delay added by l1
+        */
 
         //Delay
         DelayEvent* dDisp = new (eventRecorder) DelayEvent(dispatchCycle - curCycle);
@@ -252,6 +265,10 @@ void OOOCoreRecorder::recordAccess(uint64_t curCycle, uint64_t dispatchCycle, ui
         OOORespEvent* respEvent = new (eventRecorder) OOORespEvent(downDelay, this, domain);
         respEvent->id = curId++;
         respEvent->setMinStartCycle(respCycle);
+
+        tr.endEvent->getChildLeftDescendant()->addChild(respEvent, eventRecorder);
+
+
         tr.endEvent->addChild(respEvent, eventRecorder);
         TRACE_MSG("Adding resp zllCycle %ld delay %ld", respCycle - gapCycles, respCycle-curCycle);
         futureResponses.push({zllStartCycle, respEvent});

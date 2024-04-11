@@ -1,8 +1,9 @@
-#ifdef _WITH_BOOKSIM_
-
 #ifndef BOOKSIM_NET_CTRL_H_
 #define BOOKSIM_NET_CTRL_H_
+
+#ifdef _WITH_BOOKSIM_
 #include <map>
+#include <cmath>
 #include <string>
 #include "g_std/g_string.h"
 #include "memory_hierarchy.h"
@@ -27,17 +28,22 @@ class BookSimNetwork : public BaseCache {
         int numChildren;
         bool isLlnoc; // true if the noc interface is connected to LLC
 
-        
-        std::multimap<uint64_t, BookSimAccEvent*> inflightRequests;
+        std::unordered_map<int,BookSimAccEvent*> inflightRequests;
 
-        uint64_t curCycle; //processor cycle, used in callbacks
+        uint64_t nocCurCycle; //processor cycle, used in callbacks
 
         int hopLatency = 3;
         int flitsPerPacket = 5;
-        int meshDim = 3;        
+        int meshDim;       
 
         int nocFreq, cpuFreq, nocSpeedup;
         int nocCount, cpuCount; 
+
+        int packetSize;
+        int hopDelay;
+        
+        uint32_t zsimPhaseLength;
+        uint32_t namecnt; 
 
         // R/W stats
         PAD();
@@ -78,10 +84,8 @@ class BookSimNetwork : public BaseCache {
         //parentless for now
         void setParents(uint32_t _childId, const g_vector<MemObject*>& _parents, zsimNetwork* network){
             parents.resize(_parents.size());
-            // parentRTTs.resize(_parents.size());
             for (uint32_t p = 0; p < _parents.size(); p++) {
                 parents[p] = _parents[p];
-                // parentRTTs[p] = (network)? network->getRTT(name, parents[p]->getName()) : 0;
             }
         }
         bool hasParents(){return !parents.empty();}
@@ -102,8 +106,8 @@ class BookSimNetwork : public BaseCache {
         coordinates<int> getCoord(){panic("Should never be called");};
 
     private:
-        void noc_read_return_cb(uint32_t id, uint64_t addr, uint64_t latency);
-        void noc_write_return_cb(uint32_t id, uint64_t addr, uint64_t latency);
+        void noc_read_return_cb(uint32_t id, uint64_t pid, uint64_t latency);
+        void noc_write_return_cb(uint32_t id, uint64_t pid, uint64_t latency);
 };
 
 #endif  

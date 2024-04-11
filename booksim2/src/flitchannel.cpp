@@ -45,10 +45,11 @@
 //  $Date: 2007/06/27 23:10:17 $
 //  $Id$
 // ----------------------------------------------------------------------
-FlitChannel::FlitChannel(Module * parent, string const & name, int classes)
+FlitChannel::FlitChannel(Module * parent, string const & name, int classes, bool isLocalChannel)
 : Channel<Flit>(parent, name), _routerSource(NULL), _routerSourcePort(-1), 
   _routerSink(NULL), _routerSinkPort(-1), _idle(0) {
   _active.resize(classes, 0);
+  this->isLocalChannel = isLocalChannel; 
 }
 
 void FlitChannel::SetSource(Router const * const router, int port) {
@@ -70,7 +71,7 @@ void FlitChannel::Send(Flit * f) {
   Channel<Flit>::Send(f);
 }
 
-void FlitChannel::ReadInputs() {
+void FlitChannel::ReadInputs() { // write _input to the channel's FIFO
   Flit const * const & f = _input;
   if(f && f->watch) {
     *gWatchOut << GetSimTime() << " | " << FullName() << " | "
@@ -78,14 +79,20 @@ void FlitChannel::ReadInputs() {
 	       << " with delay " << _delay
 	       << "." << endl;
   }
-  Channel<Flit>::ReadInputs();
+  if(f && !isLocalChannel){
+    outstandingFlits[0][GetSource()->GetID()]--;
+  }
+  Channel<Flit>::ReadInputs(); 
 }
 
-void FlitChannel::WriteOutputs() {
+void FlitChannel::WriteOutputs() {  // read _output from the channel's FIFO
   Channel<Flit>::WriteOutputs();
   if(_output && _output->watch) {
     *gWatchOut << GetSimTime() << " | " << FullName() << " | "
 	       << "Completed channel traversal for flit " << _output->id
 	       << "." << endl;
+  }
+  if(_output && !isLocalChannel){
+    outstandingFlits[0][GetSink()->GetID()]++;
   }
 }

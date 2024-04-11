@@ -147,6 +147,10 @@ class BaseCache : public MemObject {
         virtual void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network) = 0;
         virtual void setGrandChildren(const g_vector<BaseCache*>& grandChildren) = 0;
         
+        virtual void addChild(BaseCache* child, zsimNetwork* network){}
+        virtual void addChildren(const g_vector<BaseCache*>& children, zsimNetwork* network){}
+        virtual uint32_t getChildrenNum() {return 0;}
+        
         virtual void incrNumGrandChildren(const int numGrandChildren) = 0;
         virtual int getNumChildren() = 0; 
         virtual int getNumParents() = 0; 

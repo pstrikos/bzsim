@@ -71,6 +71,7 @@ protected:
 
   void _Alloc( );
 
+  std::vector<int>* outstandingFlits; // counter indicating the outstanding flits in each router
 public:
   Network( const Configuration &config, const string & name );
   virtual ~Network( );
@@ -112,6 +113,7 @@ public:
   const vector<Router *> & GetRouters(){return _routers;}
   Router * GetRouter(int index) {return _routers[index];}
   int NumRouters() const {return _size;}
+  void setOutstandingFlits(std::vector<int> *outstandingFlits);
 };
 
 #endif 

@@ -144,7 +144,7 @@ void Network::_Alloc( )
   for ( int s = 0; s < _nodes; ++s ) {
     ostringstream name;
     name << Name() << "_fchan_ingress" << s;
-    _inject[s] = new FlitChannel(this, name.str(), _classes);
+    _inject[s] = new FlitChannel(this, name.str(), _classes, true);
     _inject[s]->SetSource(NULL, s);
     _timed_modules.push_back(_inject[s]);
     name.str("");
@@ -157,7 +157,7 @@ void Network::_Alloc( )
   for ( int d = 0; d < _nodes; ++d ) {
     ostringstream name;
     name << Name() << "_fchan_egress" << d;
-    _eject[d] = new FlitChannel(this, name.str(), _classes);
+    _eject[d] = new FlitChannel(this, name.str(), _classes, true);
     _eject[d]->SetSink(NULL, d);
     _timed_modules.push_back(_eject[d]);
     name.str("");
@@ -170,7 +170,7 @@ void Network::_Alloc( )
   for ( int c = 0; c < _channels; ++c ) {
     ostringstream name;
     name << Name() << "_fchan_" << c;
-    _chan[c] = new FlitChannel(this, name.str(), _classes);
+    _chan[c] = new FlitChannel(this, name.str(), _classes, false);
     _timed_modules.push_back(_chan[c]);
     name.str("");
     name << Name() << "_cchan_" << c;
@@ -287,4 +287,14 @@ void Network::DumpNodeMap( ostream & os, string const & prefix ) const
     os << prefix
        << _eject[s]->GetSource()->GetID() << ','
        << _inject[s]->GetSink()->GetID() << endl;
+}
+
+void Network::setOutstandingFlits(std::vector<int> *outstandingFlits){
+  for ( int c = 0; c < _channels; ++c ) {
+    _chan[c]->setOutstandingFlits(outstandingFlits);
+  }
+  for(int r = 0 ; r < _size; ++r){
+      _routers[r]->setOutstandingFlits(outstandingFlits);
+  }
+  this->outstandingFlits = outstandingFlits;
 }

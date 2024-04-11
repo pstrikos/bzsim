@@ -52,7 +52,7 @@ class Router ;
 
 class FlitChannel : public Channel<Flit> {
 public:
-  FlitChannel(Module * parent, string const & name, int classes);
+  FlitChannel(Module * parent, string const & name, int classes, bool isLocalChannel);
 
   void SetSource(Router const * const router, int port) ;
   inline Router const * const GetSource() const {
@@ -78,7 +78,15 @@ public:
   virtual void ReadInputs();
   virtual void WriteOutputs();
 
+  void setOutstandingFlits(std::vector<int> *outstandingFlits){
+    this->outstandingFlits = outstandingFlits;
+  }
+
 private:
+
+  bool isLocalChannel;
+  std::vector<int>* outstandingFlits; // counter indicating the outstanding flits in each router
+
   
   ////////////////////////////////////////
   //

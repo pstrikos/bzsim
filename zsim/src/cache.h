@@ -65,7 +65,8 @@ class Cache : public BaseCache {
         void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, zsimNetwork* network);
         void setChildren(const g_vector<BaseCache*>& children, zsimNetwork* network);
         void setGrandChildren(const g_vector<BaseCache*>& granChildren);
-        
+        void addChild(BaseCache* child, zsimNetwork* network);
+        void addChildren(const g_vector<BaseCache*>& children, zsimNetwork* network);
         void setCoord(const coordinates<int> _coord) {coord = _coord;};
         coordinates<int> getCoord(){return coord;};
 
@@ -75,7 +76,8 @@ class Cache : public BaseCache {
         int getNumParents(){return numParents;}
         
         void initStats(AggregateStat* parentStat);
-
+        uint32_t getChildrenNum();
+        
         virtual uint64_t access(MemReq& req);
 
         //NOTE: reqWriteback is pulled up to true, but not pulled down to false.
