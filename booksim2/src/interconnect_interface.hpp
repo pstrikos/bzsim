@@ -120,7 +120,6 @@ protected:
   int hopDelay;
   uint32_t zsimPhaseLength;
   int iN; //dimension
-  int dim; //dimension
 
 private:
   int stepsBeforeUpdateStats, stepsCnt;

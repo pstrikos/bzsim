@@ -2116,9 +2116,8 @@ int TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, simT
 #if defined(_SKIP_STEP_) || defined(_EMPTY_STEP_)
     // save the pid of the generated PACKET and the zll.
     // we do not really need any other information
-    int dim = sqrt(_nodes);
-    int src_x = source%dim, src_y = source/dim;
-    int dst_x = dest%dim, dst_y = dest/dim;
+    int src_x = source/gX, src_y = source%gX;
+    int dst_x = dest/gX, dst_y = dest%gX;
     int zll = (abs(dst_x-src_x) + abs(dst_y-src_y) + 1)*(4) + (5-1) + 50; // hoplatency = 4, flits/packet = 5, hack = 3
 
     _in_flight_packets.insert(make_pair(pid, zll));

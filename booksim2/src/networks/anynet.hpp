@@ -37,6 +37,9 @@
 
 class AnyNet : public Network {
 
+  int _xcount;
+  int _ycount;
+
   string file_name;
   //associtation between  nodes and routers
   map<int, int > node_list;

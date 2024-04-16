@@ -54,7 +54,7 @@ BookSimNetwork::BookSimNetwork(const char* _name, int _id, InterconnectInterface
     name = _name;
     id = _id;
     numChildren = 0;
-    meshDim = sqrt(nocIf->getNodes());
+    meshDim = gX;
     isLlnoc = false;
 
     futex_init(&netLockAcc);

@@ -36,6 +36,8 @@ class KNCube : public Network {
 
   int _k;
   int _n;
+  int _xcount;
+  int _ycount;
 
   void _ComputeSize( const Configuration &config );
   void _BuildNet( const Configuration &config );

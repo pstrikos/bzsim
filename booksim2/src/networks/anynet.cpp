@@ -86,6 +86,13 @@ void AnyNet::_ComputeSize( const Configuration &config ){
   //parse the network description file
   readFile();
 
+  _xcount = config.GetInt("x"); 
+  assert(_xcount > 0);
+  _ycount = config.GetInt("y");
+  assert(_ycount > 0); 
+  gX = _xcount; gY = _ycount;
+
+
   _channels =0;
   cout<<"========================BookSimNetwork File Parsed=================\n";
   cout<<"******************node listing**********************\n";

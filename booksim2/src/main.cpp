@@ -94,6 +94,9 @@ bool gPrintActivity;
 int gK;//radix
 int gN;//dimension
 int gC;//concentration
+int gX;//x dimension count
+int gY;//y dimension count
+
 
 int gNodes;
 

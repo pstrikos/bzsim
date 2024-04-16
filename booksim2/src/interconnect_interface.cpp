@@ -103,7 +103,6 @@ void InterconnectInterface::CreateInterconnect()
   // assert(_icnt_config->GetStr("sim_type") == "gpgpusim");
   _traffic_manager = TrafficManager::New( *_icnt_config, _net, this) ;
   iN = _traffic_manager->getNodes();
-  dim = sqrt(iN);
   _flit_size = _icnt_config->GetInt( "flit_size" );
 
   // Config for interface buffers

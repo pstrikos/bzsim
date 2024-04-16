@@ -36,6 +36,7 @@
 #include <sstream>
 #include <ctime>
 #include <cassert>
+#include <cmath>
 #include "kncube.hpp"
 #include "random_utils.hpp"
 #include "misc_utils.hpp"
@@ -56,6 +57,15 @@ void KNCube::_ComputeSize( const Configuration &config )
 {
   _k = config.GetInt( "k" );
   _n = config.GetInt( "n" );
+  _xcount = config.GetInt("x"); 
+  _ycount = config.GetInt("y");
+  if(_xcount > 0 && _ycount > 0){
+    gX = _xcount;
+    gY = _ycount;
+  } else {
+    gX  = _k;
+    gY  = _k;
+  }
 
   gK = _k; gN = _n;
   _size     = powi( _k, _n );

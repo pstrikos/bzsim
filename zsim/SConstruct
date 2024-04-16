@@ -209,7 +209,7 @@ if GetOption('optBuild') or len(buildTypes) == 0: buildTypes.append("opt")
 march = "core2" # ensure compatibility across condor nodes
 #march = "native" # for profiling runs
 
-buildFlags = {"debug": "-g -O0",
+buildFlags = {"debug": "-g -O0  -D_ATTACH_GDB_=1",
               "opt": "-march=%s -g -O3 -funroll-loops" % march, # unroll loops tends to help in zsim, but in general it can cause slowdown
               "release": "-march=%s -O3 -DNASSERT -funroll-loops -fweb" % march} # fweb saves ~4% exec time, but makes debugging a world of pain, so careful
 
