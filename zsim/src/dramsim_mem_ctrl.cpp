@@ -80,6 +80,10 @@ DRAMSimMemory::DRAMSimMemory(string& dramTechIni, string& dramSystemIni, string&
     tickEv->queue(0);  // start the sim at time 0
 
     name = _name;
+#ifdef _SANITY_CHECK_
+    futex_init(&access_lock);
+    futex_init(&cb_lock);
+#endif
 }
 
 void DRAMSimMemory::initStats(AggregateStat* parentStat) {
@@ -89,20 +93,34 @@ void DRAMSimMemory::initStats(AggregateStat* parentStat) {
     profWrites.init("wr", "Write requests"); memStats->append(&profWrites);
     profTotalRdLat.init("rdlat", "Total latency experienced by read requests"); memStats->append(&profTotalRdLat);
     profTotalWrLat.init("wrlat", "Total latency experienced by write requests"); memStats->append(&profTotalWrLat);
+    mnGETS.init("mnGETS", "mnGETS"); memStats->append(&mnGETS);
+    mnGETX.init("mnGETX", "mnGETX"); memStats->append(&mnGETX);
+    mnPUTS.init("mnPUTS", "mnPUTS"); memStats->append(&mnPUTS);
+    mnPUTX.init("mnPUTX", "mnPUTX"); memStats->append(&mnPUTX);
     parentStat->append(memStats);
 }
 
 uint64_t DRAMSimMemory::access(MemReq& req) {
+#ifdef _SANITY_CHECK_
+    futex_lock(&access_lock);
+#endif
+
     switch (req.type) {
         case PUTS:
+            *req.state = I;
+            mnPUTS.inc();
+            break;
         case PUTX:
             *req.state = I;
+            mnPUTX.inc();
             break;
         case GETS:
             *req.state = req.is(MemReq::NOEXCL)? S : E;
+            mnGETS.inc();
             break;
         case GETX:
             *req.state = M;
+            mnGETX.inc();
             break;
 
         default: panic("!?");
@@ -119,7 +137,9 @@ uint64_t DRAMSimMemory::access(MemReq& req) {
         TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
         zinfo->eventRecorders[req.srcId]->pushRecord(tr);
     }
-
+#ifdef _SANITY_CHECK_
+    futex_unlock(&access_lock);
+#endif
     return respCycle;
 }
 
@@ -137,6 +157,9 @@ void DRAMSimMemory::enqueue(DRAMSimAccEvent* ev, uint64_t cycle) {
 }
 
 void DRAMSimMemory::DRAM_read_return_cb(uint32_t id, uint64_t addr, uint64_t memCycle) {
+#ifdef _SANITY_CHECK_
+    futex_lock(&cb_lock);
+#endif
     std::multimap<uint64_t, DRAMSimAccEvent*>::iterator it = inflightRequests.find(addr);
     assert((it != inflightRequests.end()));
     DRAMSimAccEvent* ev = it->second;
@@ -149,7 +172,9 @@ void DRAMSimMemory::DRAM_read_return_cb(uint32_t id, uint64_t addr, uint64_t mem
         profReads.inc();
         profTotalRdLat.inc(lat);
     }
-
+#ifdef _SANITY_CHECK_
+    futex_unlock(&cb_lock);
+#endif
     ev->release();
     ev->done(curCycle+1);
     inflightRequests.erase(it);

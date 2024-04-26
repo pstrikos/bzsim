@@ -32,6 +32,7 @@
 #include "memory_hierarchy.h"
 #include "pad.h"
 #include "stats.h"
+#include "locks.h"
 
 namespace DRAMSim {
     class MultiChannelMemorySystem;
@@ -54,6 +55,10 @@ class DRAMSimMemory : public MemObject { //one DRAMSim controller
 
         // NoC router address
         coordinates<int> coord;
+#ifdef _SANITY_CHECK_
+        lock_t access_lock;
+        lock_t cb_lock;
+#endif
 
         // R/W stats
         PAD();
@@ -61,6 +66,7 @@ class DRAMSimMemory : public MemObject { //one DRAMSim controller
         Counter profWrites;
         Counter profTotalRdLat;
         Counter profTotalWrLat;
+        Counter mnGETS, mnGETX, mnPUTS, mnPUTX;
         PAD();
 
     public:

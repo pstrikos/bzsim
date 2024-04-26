@@ -50,11 +50,15 @@ class BookSimNetwork : public BaseCache {
         PAD();
         lock_t  netLockAcc;
         lock_t  netLockInv;
+        lock_t  cb_lock;
         Counter profReads;
         Counter profWrites;
         Counter localReqs, remoteReqs;
         Counter profTotalRdLat;
         Counter profTotalWrLat;
+#ifdef _SANITY_CHECK_
+        Counter nocGETS, nocGETX, nocPUTS, nocPUTX;
+#endif
         PAD();
 
     public:

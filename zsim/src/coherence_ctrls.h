@@ -99,6 +99,7 @@ class MESIBottomCC : public GlobAlloc {
         //Profiling counters
         Counter profGETSHit, profGETSMiss, profGETXHit, profGETXMissIM /*from invalid*/, profGETXMissSM /*from S, i.e. upgrade misses*/;
         Counter profPUTS, profPUTX /*received from downstream*/;
+        Counter profPUTS_toUpstream, profPUTX_toUpstream /*sent to upstream*/;
         Counter profINV, profINVX, profFWD /*received from upstream*/;
         //Counter profWBIncl, profWBCoh /* writebacks due to inclusion or coherence, received from downstream, does not include PUTS */;
         // TODO: Measuring writebacks is messy, do if needed
@@ -139,6 +140,8 @@ class MESIBottomCC : public GlobAlloc {
             profGETXMissSM.init("mGETXSM", "GETX S->M misses (upgrade misses)");
             profPUTS.init("PUTS", "Clean evictions (from lower level)");
             profPUTX.init("PUTX", "Dirty evictions (from lower level)");
+            profPUTS_toUpstream.init("PUTS_toUpstream", "Clean evictions (to lower level)");
+            profPUTX_toUpstream.init("PUTX_toUpstream", "Dirty evictions (to lower level)");
             profINV.init("INV", "Invalidates (from upper level)");
             profINVX.init("INVX", "Downgrades (from upper level)");
             profFWD.init("FWD", "Forwards (from upper level)");
@@ -152,6 +155,8 @@ class MESIBottomCC : public GlobAlloc {
             parentStat->append(&profGETXMissSM);
             parentStat->append(&profPUTS);
             parentStat->append(&profPUTX);
+            parentStat->append(&profPUTS_toUpstream);
+            parentStat->append(&profPUTX_toUpstream);
             parentStat->append(&profINV);
             parentStat->append(&profINVX);
             parentStat->append(&profFWD);

@@ -59,6 +59,7 @@ BookSimNetwork::BookSimNetwork(const char* _name, int _id, InterconnectInterface
 
     futex_init(&netLockAcc);
     futex_init(&netLockInv);
+    futex_init(&cb_lock);
 
     booksim::TransactionCompleteCB *read_cb = new booksim::Callback<BookSimNetwork, void, unsigned, uint64_t, uint64_t>(this, &BookSimNetwork::noc_read_return_cb);
     booksim::TransactionCompleteCB *write_cb = new booksim::Callback<BookSimNetwork, void, unsigned, uint64_t, uint64_t>(this, &BookSimNetwork::noc_write_return_cb);
@@ -81,6 +82,12 @@ void BookSimNetwork::initStats(AggregateStat* parentStat) {
     remoteReqs.init("remote", "Remote requests"); nocStats->append(&remoteReqs);
     profTotalRdLat.init("rdlat", "Total latency experienced by read requests"); nocStats->append(&profTotalRdLat);
     profTotalWrLat.init("wrlat", "Total latency experienced by write requests"); nocStats->append(&profTotalWrLat);
+#ifdef _SANITY_CHECK_
+    nocGETS.init("nocGETS", "nocGETS"); nocStats->append(&nocGETS);
+    nocGETX.init("nocGETX", "nocGETX"); nocStats->append(&nocGETX);
+    nocPUTS.init("nocPUTS", "nocPUTS"); nocStats->append(&nocPUTS);
+    nocPUTX.init("nocPUTX", "nocPUTX"); nocStats->append(&nocPUTX);
+#endif
     parentStat->append(nocStats);
 }
 
@@ -106,7 +113,25 @@ void BookSimNetwork::endAccess(MemReq& req){
 uint64_t BookSimNetwork::access(MemReq& req) {
         
         startAccess(req);
-    
+ #ifdef _SANITY_CHECK_   
+        switch (req.type) {
+        case PUTS:
+            nocPUTS.inc();
+            break;
+        case PUTX:
+            nocPUTX.inc();
+            break;
+        case GETS:
+            nocGETS.inc();
+            break;
+        case GETX:
+            nocGETX.inc();
+            break;
+        default: 
+            panic("!?");
+    }
+#endif
+
         // The request (req) that is passed, contains an 'address', based on which, we do the following:
         // 1) translate it in network address. If there are multiple MCs, the splitter contacts the correct one
         // 2) create a doubleCoord that will later be stored in booksimAccEv->coord
@@ -248,11 +273,11 @@ uint64_t BookSimNetwork::access(MemReq& req) {
             lastEvInv->addChild(nocEvT,evRec);
             assert(lastEvInv->getMinStartCycle() + lastEvInv->getZll() == nocEvT->getMinStartCycle());
 
-            TimingRecord noctr = {addr, req.cycle, respCycle + zll, GETX, firstEvInv, firstEvInv};
+            TimingRecord noctr = {addr, req.cycle, respCycle + zll, type, firstEvInv, firstEvInv};
             evRec->pushRecord(noctr);
         }
         else{
-            TimingRecord noctr = {addr, req.cycle, respCycle + zll, GETX, nocEvT, nocEvT};
+            TimingRecord noctr = {addr, req.cycle, respCycle + zll, type, nocEvT, nocEvT};
             evRec->pushRecord(noctr);
         }
 
@@ -403,6 +428,7 @@ uint64_t BookSimNetwork::invalidate(const InvReq& req){
 }
 
 void BookSimNetwork::noc_read_return_cb(uint32_t id, uint64_t pid, uint64_t latency) {
+    futex_lock(&cb_lock);
 
     int curCycle = (nocIf->getNocCurCycle())*cpuFreq/nocFreq;  
     std::unordered_map<int, BookSimAccEvent*>::iterator it = inflightRequests.find(pid);
@@ -423,6 +449,8 @@ void BookSimNetwork::noc_read_return_cb(uint32_t id, uint64_t pid, uint64_t late
         profReads.inc();
         profTotalRdLat.inc(lat);
     }
+
+    futex_unlock(&cb_lock);
 
     ev->release();
     ev->done(curCycle);

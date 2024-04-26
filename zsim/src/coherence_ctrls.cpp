@@ -76,6 +76,7 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
                 MemReq req = {wbLineAddr, PUTS, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/};
                 req.nocCoord = nocCoord;
                 respCycle = parents[getParentId(wbLineAddr)]->access(req);
+                profPUTS_toUpstream.inc();
             }
             break;
         case M:
@@ -83,6 +84,7 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
                 MemReq req = {wbLineAddr, PUTX, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/};
                 req.nocCoord = nocCoord;
                 respCycle = parents[getParentId(wbLineAddr)]->access(req);
+                profPUTX_toUpstream.inc();
             }
             break;
 

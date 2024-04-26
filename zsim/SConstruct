@@ -197,12 +197,14 @@ AddOption('--d', dest='debugBuild', default=False, action='store_true', help='Do
 AddOption('--o', dest='optBuild', default=False, action='store_true', help='Do an opt build (optimized, with assertions and symbols)')
 AddOption('--r', dest='releaseBuild', default=False, action='store_true', help='Do a release build (optimized, no assertions, no symbols)')
 AddOption('--p', dest='pgoBuild', default=False, action='store_true', help='Enable PGO')
+AddOption('--s', dest='sanityChecks', default=False, action='store_true', help='Enable Sanity Checks')
 AddOption('--pgoPhase', dest='pgoPhase', default="none", action='store', help='PGO phase (just run with --p to do them all)')
 
 
 baseBuildDir = GetOption('buildDir')
 buildTypes = []
 if GetOption('debugBuild'): buildTypes.append("debug")
+if GetOption('sanityChecks'): buildTypes.append("sanity")
 if GetOption('releaseBuild'): buildTypes.append("release")
 if GetOption('optBuild') or len(buildTypes) == 0: buildTypes.append("opt")
 
@@ -211,7 +213,8 @@ march = "core2" # ensure compatibility across condor nodes
 
 buildFlags = {"debug": "-g -O0  -D_ATTACH_GDB_=1",
               "opt": "-march=%s -g -O3 -funroll-loops" % march, # unroll loops tends to help in zsim, but in general it can cause slowdown
-              "release": "-march=%s -O3 -DNASSERT -funroll-loops -fweb" % march} # fweb saves ~4% exec time, but makes debugging a world of pain, so careful
+              "release": "-march=%s -O3 -DNASSERT -funroll-loops -fweb" % march, # fweb saves ~4% exec time, but makes debugging a world of pain, so careful
+              "sanity": "-g -O0 -D_SANITY_CHECK_=1"} 
 
 pgoPhase = GetOption('pgoPhase')
 
