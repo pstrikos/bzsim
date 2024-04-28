@@ -104,12 +104,10 @@ uint64_t DRAMSimMemory::access(MemReq& req) {
 #ifdef _SANITY_CHECK_
     futex_lock(&access_lock);
 #endif
+    
+    assert(req.type != PUTS);
 
     switch (req.type) {
-        case PUTS:
-            *req.state = I;
-            mnPUTS.inc();
-            break;
         case PUTX:
             *req.state = I;
             mnPUTX.inc();
@@ -129,14 +127,12 @@ uint64_t DRAMSimMemory::access(MemReq& req) {
     uint64_t respCycle = req.cycle + minLatency;
     assert(respCycle > req.cycle);
 
-    if ((req.type != PUTS /*discard clean writebacks*/) && zinfo->eventRecorders[req.srcId]) {
-        Address addr = req.lineAddr << lineBits;
-        bool isWrite = (req.type == PUTX);
-        DRAMSimAccEvent* memEv = new (zinfo->eventRecorders[req.srcId]) DRAMSimAccEvent(this, isWrite, addr, domain);
-        memEv->setMinStartCycle(req.cycle);
-        TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
-        zinfo->eventRecorders[req.srcId]->pushRecord(tr);
-    }
+    Address addr = req.lineAddr << lineBits;
+    bool isWrite = (req.type == PUTX);
+    DRAMSimAccEvent* memEv = new (zinfo->eventRecorders[req.srcId]) DRAMSimAccEvent(this, isWrite, addr, domain);
+    memEv->setMinStartCycle(req.cycle);
+    TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
+    zinfo->eventRecorders[req.srcId]->pushRecord(tr);
 #ifdef _SANITY_CHECK_
     futex_unlock(&access_lock);
 #endif

@@ -88,7 +88,7 @@ extern void EndOfPhaseActions(); //in zsim.cpp
  * follow the layout of zinfo, top-down.
  */
 
-BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, uint32_t bankSize, bool isTerminal, uint32_t domain) {
+BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, uint32_t bankSize, bool isTerminal, bool isLLC, uint32_t domain) {
     string type = config.get<const char*>(prefix + "type", "Simple");
     // Shortcut for TraceDriven type
     if (type == "TraceDriven") {
@@ -269,9 +269,9 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
     Cache* cache;
     CC* cc;
     if (isTerminal) {
-        cc = new MESITerminalCC(numLines, name);
+        cc = new MESITerminalCC(numLines, isLLC, name);
     } else {
-        cc = new MESICC(numLines, nonInclusiveHack, name);
+        cc = new MESICC(numLines, isLLC, nonInclusiveHack, name);
     }
     rp->setCC(cc);
     if (!isTerminal) {
@@ -381,7 +381,7 @@ typedef vector<vector<BookSimNetwork*>> NocGroup;
 #endif
 
 
-CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal) {
+CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal, bool isLLC) {
     CacheGroup* cgp = new CacheGroup;
     CacheGroup& cg = *cgp;
 
@@ -454,7 +454,7 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
             }
             g_string bankName(ss.str().c_str());
             uint32_t domain = (i*banks + j)*zinfo->numDomains/(caches*banks); //(banks > 1)? nextDomain() : (i*banks + j)*zinfo->numDomains/(caches*banks);
-            cg[i][j] = BuildCacheBank(config, prefix, bankName, bankSize, isTerminal, domain);
+            cg[i][j] = BuildCacheBank(config, prefix, bankName, bankSize, isTerminal, isLLC, domain);
 #ifdef _WITH_BOOKSIM_
             if(connectedToNoc){
                 networkCoordMap[ss.str()] = {cacheCoord[i+j]}; 
@@ -611,6 +611,7 @@ static void InitSystem(Config& config) {
 
     // Build each of the groups, starting with the LLC
     unordered_map<string, CacheGroup*> cMap;
+    bool isLLC = true; // true only for the first cache (LLC). Then it is set to false for the rest 
     list<string> fringe;  // FIFO
     fringe.push_back(llc);
     while (!fringe.empty()) {
@@ -618,10 +619,11 @@ static void InitSystem(Config& config) {
         fringe.pop_front();
         if (cMap.count(group)) panic("The cache 'tree' has a loop at %s", group.c_str());
         if(std::find(cacheGroupNames.begin(), cacheGroupNames.end(), group) != cacheGroupNames.end()){
-            cMap[group] = BuildCacheGroup(config, group, isTerminal(group));
+            cMap[group] = BuildCacheGroup(config, group, isTerminal(group), isLLC);
         } 
         // add everything in childVect at the end of fringe
         for (auto& childVec : childMap[group]) fringe.insert(fringe.end(), childVec.begin(), childVec.end());
+        isLLC = false;
     }
 
 #ifdef _WITH_BOOKSIM_

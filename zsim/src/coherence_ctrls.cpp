@@ -73,10 +73,15 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
         case S:
         case E:
             {
-                MemReq req = {wbLineAddr, PUTS, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/};
-                req.nocCoord = nocCoord;
-                respCycle = parents[getParentId(wbLineAddr)]->access(req);
-                profPUTS_toUpstream.inc();
+                if(!isLLC){
+                    MemReq req = {wbLineAddr, PUTS, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/};
+                    req.nocCoord = nocCoord;
+                    respCycle = parents[getParentId(wbLineAddr)]->access(req);
+                    profPUTS_toUpstream.inc();
+                } else {
+                    *state = I; 
+                    profPUTS_toUpstreamLLC.inc();
+                }
             }
             break;
         case M:

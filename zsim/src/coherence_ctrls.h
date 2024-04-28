@@ -95,11 +95,12 @@ class MESIBottomCC : public GlobAlloc {
         uint32_t numLines;
         uint32_t selfId;
         const char* name;
+        bool isLLC;
 
         //Profiling counters
         Counter profGETSHit, profGETSMiss, profGETXHit, profGETXMissIM /*from invalid*/, profGETXMissSM /*from S, i.e. upgrade misses*/;
         Counter profPUTS, profPUTX /*received from downstream*/;
-        Counter profPUTS_toUpstream, profPUTX_toUpstream /*sent to upstream*/;
+        Counter profPUTS_toUpstream, profPUTX_toUpstream, profPUTS_toUpstreamLLC /*sent to upstream*/;
         Counter profINV, profINVX, profFWD /*received from upstream*/;
         //Counter profWBIncl, profWBCoh /* writebacks due to inclusion or coherence, received from downstream, does not include PUTS */;
         // TODO: Measuring writebacks is messy, do if needed
@@ -112,7 +113,7 @@ class MESIBottomCC : public GlobAlloc {
         PAD();
 
     public:
-        MESIBottomCC(uint32_t _numLines, uint32_t _selfId, bool _nonInclusiveHack) : numLines(_numLines), selfId(_selfId), nonInclusiveHack(_nonInclusiveHack) {
+        MESIBottomCC(uint32_t _numLines, uint32_t _selfId, bool _isLLC, bool _nonInclusiveHack) : numLines(_numLines), selfId(_selfId), isLLC(_isLLC), nonInclusiveHack(_nonInclusiveHack){
             array = gm_calloc<MESIState>(numLines);
             for (uint32_t i = 0; i < numLines; i++) {
                 array[i] = I;
@@ -142,6 +143,7 @@ class MESIBottomCC : public GlobAlloc {
             profPUTX.init("PUTX", "Dirty evictions (from lower level)");
             profPUTS_toUpstream.init("PUTS_toUpstream", "Clean evictions (to lower level)");
             profPUTX_toUpstream.init("PUTX_toUpstream", "Dirty evictions (to lower level)");
+            profPUTS_toUpstreamLLC.init("PUTS_toUpstreamLLC", "Clean evictions stopped in LLC");
             profINV.init("INV", "Invalidates (from upper level)");
             profINVX.init("INVX", "Downgrades (from upper level)");
             profFWD.init("FWD", "Forwards (from upper level)");
@@ -157,6 +159,7 @@ class MESIBottomCC : public GlobAlloc {
             parentStat->append(&profPUTX);
             parentStat->append(&profPUTS_toUpstream);
             parentStat->append(&profPUTX_toUpstream);
+            parentStat->append(&profPUTS_toUpstreamLLC);
             parentStat->append(&profINV);
             parentStat->append(&profINVX);
             parentStat->append(&profFWD);
@@ -319,16 +322,17 @@ class MESICC : public CC {
         MESITopCC* tcc;
         MESIBottomCC* bcc;
         uint32_t numLines;
+        bool isLLC;
         bool nonInclusiveHack;
         g_string name;
 
     public:
         //Initialization
-        MESICC(uint32_t _numLines, bool _nonInclusiveHack, g_string& _name) : tcc(nullptr), bcc(nullptr),
-            numLines(_numLines), nonInclusiveHack(_nonInclusiveHack), name(_name) {}
+        MESICC(uint32_t _numLines, bool _isLLC, bool _nonInclusiveHack, g_string& _name) : tcc(nullptr), bcc(nullptr),
+            numLines(_numLines), isLLC(_isLLC), nonInclusiveHack(_nonInclusiveHack), name(_name) {}
 
         void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) {
-            bcc = new MESIBottomCC(numLines, childId, nonInclusiveHack);
+            bcc = new MESIBottomCC(numLines, childId, isLLC, nonInclusiveHack);
             bcc->init(parents, network, name.c_str());
         }
 
@@ -483,14 +487,15 @@ class MESITerminalCC : public CC {
     private:
         MESIBottomCC* bcc;
         uint32_t numLines;
+        bool isLLC;
         g_string name;
 
     public:
         //Initialization
-        MESITerminalCC(uint32_t _numLines, const g_string& _name) : bcc(nullptr), numLines(_numLines), name(_name) {}
+        MESITerminalCC(uint32_t _numLines, bool _isLLC, const g_string& _name) : bcc(nullptr), numLines(_numLines), isLLC(_isLLC), name(_name){}
 
         void setParents(uint32_t childId, const g_vector<MemObject*>& parents, zsimNetwork* network) {
-            bcc = new MESIBottomCC(numLines, childId, false /*inclusive*/);
+            bcc = new MESIBottomCC(numLines, childId, isLLC, false /*inclusive*/);
             bcc->init(parents, network, name.c_str());
         }
 

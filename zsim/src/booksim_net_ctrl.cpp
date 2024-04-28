@@ -114,6 +114,10 @@ uint64_t BookSimNetwork::access(MemReq& req) {
         
         startAccess(req);
  #ifdef _SANITY_CHECK_   
+        if(isLlnoc){
+            assert(req.type != PUTS);
+        }
+
         switch (req.type) {
         case PUTS:
             nocPUTS.inc();
@@ -185,7 +189,11 @@ uint64_t BookSimNetwork::access(MemReq& req) {
 
         TimingRecord tr;
         tr = evRec->popRecord();
-    
+
+        if(isLlnoc){
+            assert(tr.startEvent != nullptr);
+        }
+
         Address addr = req.lineAddr;
         bool isWrite = (type == PUTX);
 
