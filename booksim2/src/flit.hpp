@@ -58,8 +58,8 @@ public:
   simTime  itime;
   simTime  atime;
 
-  int  id;
-  int  pid;
+  uint64_t  id;
+  uint64_t  pid;
 
   bool record;
 

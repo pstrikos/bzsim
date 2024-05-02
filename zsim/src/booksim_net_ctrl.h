@@ -29,7 +29,7 @@ class BookSimNetwork : public BaseCache {
         int numChildren;
         bool isLlnoc; // true if the noc interface is connected to LLC
 
-        std::unordered_map<int,BookSimAccEvent*> inflightRequests;
+        std::unordered_map<uint64_t,BookSimAccEvent*> inflightRequests;
 
         uint64_t nocCurCycle; //processor cycle, used in callbacks
 

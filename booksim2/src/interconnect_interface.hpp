@@ -55,11 +55,11 @@ public:
   static InterconnectInterface* New(const char* const config_file);
   void CreateInterconnect();
   
-  int ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr);
+  uint64_t ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr);
   void Step();
 
   void RegisterCallbacksInterface(booksim::TransactionCompleteCB *readDone, booksim::TransactionCompleteCB *writeDone, BookSimNetwork *nocAddr);
-  void CallbackEverything(int pid, BookSimNetwork *nocAddr);
+  void CallbackEverything(uint64_t pid, BookSimNetwork *nocAddr);
   
   void Init();
   void UpdateStats();

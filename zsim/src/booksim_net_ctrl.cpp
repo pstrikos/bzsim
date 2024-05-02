@@ -325,7 +325,7 @@ void BookSimNetwork::enqueue(BookSimAccEvent* ev, uint64_t cycle) {
     doubleCoordinates<int> coord = ev->getCoord();
     int _source = meshDim*(coord.src.x) + coord.src.y;
     int _dest = meshDim*(coord.dest.x) + coord.dest.y;
-    int curPid = nocIf->ManuallyGeneratePacket(_source, _dest, packetSize, -1, ev->getAddr(), this);
+    uint64_t curPid = nocIf->ManuallyGeneratePacket(_source, _dest, packetSize, -1, ev->getAddr(), this);
     inflightRequests.insert(std::pair<int,BookSimAccEvent*>(curPid, ev));
     ev->hold();
 }
@@ -439,7 +439,7 @@ void BookSimNetwork::noc_read_return_cb(uint32_t id, uint64_t pid, uint64_t late
     futex_lock(&cb_lock);
 
     int curCycle = (nocIf->getNocCurCycle())*cpuFreq/nocFreq;  
-    std::unordered_map<int, BookSimAccEvent*>::iterator it = inflightRequests.find(pid);
+    std::unordered_map<uint64_t, BookSimAccEvent*>::iterator it = inflightRequests.find(pid);
 
     if(it == inflightRequests.end()){
         std::cout << "BookSimNetwork " << this->name << " received a callback for an address that doesn't exist" << std::endl;

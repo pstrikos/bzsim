@@ -2078,7 +2078,7 @@ void TrafficManager::printInjectedPackets() {
      "++++++++++++++++++++++++++++++++++++++++++" << endl;
 }
 
-int TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr){
+uint64_t TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr){
     // The packets here are used by zsim, so no warmup stage is needed.
     // In running stage, record is always one and the packets are also
     // inserted in the _measured_in_flight_flits vector as well.
@@ -2097,7 +2097,7 @@ int TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, simT
 
     Flit::FlitType packet_type = Flit::ANY_TYPE;
     // int size = _GetNextPacketSize(cl); //input size 
-    int pid = _cur_pid++;
+    uint64_t pid = _cur_pid++;
 
     _in_flight_req_address.insert(make_pair(pid,make_pair(nocAddr,addr) ));
     assert(_cur_pid);

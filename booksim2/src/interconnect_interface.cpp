@@ -147,9 +147,9 @@ void InterconnectInterface::Init()
   _traffic_manager->Init();
 }
 
-int InterconnectInterface::ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr){
+uint64_t InterconnectInterface::ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr){
     outStandingPackets++;
-    int packId = _traffic_manager->_ManuallyGeneratePacket(source,  dest,  size,  ctime, addr, nocAddr);
+    uint64_t packId = _traffic_manager->_ManuallyGeneratePacket(source,  dest,  size,  ctime, addr, nocAddr);
     return packId;
   }
 
@@ -236,7 +236,7 @@ void InterconnectInterface::RegisterCallbacksInterface(Callback_t *readDone, Cal
 }
 
 
-void InterconnectInterface::CallbackEverything(int pid, BookSimNetwork *nocAddr){
+void InterconnectInterface::CallbackEverything(uint64_t pid, BookSimNetwork *nocAddr){
   outStandingPackets--;
   for (auto& iter: ReturnReadData) {
     if(iter.first == nocAddr){

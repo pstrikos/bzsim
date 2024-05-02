@@ -133,7 +133,7 @@ protected:
   vector<map<int, Flit *> > _retired_packets;
 
 #if defined(_SKIP_STEP_) || defined(_EMPTY_STEP_)
-  map<int, int> _in_flight_packets;
+  map<uint64_t, int> _in_flight_packets;
 #endif
 
   bool _empty_network;
@@ -249,8 +249,8 @@ protected:
   vector<double> _warmup_threshold;
   vector<double> _acc_warmup_threshold;
 
-  int _cur_id;
-  int _cur_pid;
+  uint64_t _cur_id;
+  uint64_t _cur_pid;
 
   set<int> _flits_to_watch;
   set<int> _packets_to_watch;
@@ -309,7 +309,7 @@ public:
   int getVCs(){ return _vcs;}
   int getNodes(){ return _nodes;}
   void _ManuallyInjectPacket(int source, int dest, int size, int ctime);
-  int _ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr);
+  uint64_t _ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr);
 
   static TrafficManager * New(Configuration const & config, 
 			      vector<Network *> const & net, InterconnectInterface* parentInterface);
