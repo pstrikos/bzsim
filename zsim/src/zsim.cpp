@@ -1115,6 +1115,12 @@ VOID SimEnd() {
 
         info("Dumping termination stats");
         zinfo->trigger = 20000;
+
+
+#ifdef _WITH_BOOKSIM_
+        zinfo->contentionSim->displayNocStats();
+#endif
+
         for (StatsBackend* backend : *(zinfo->statsBackends)) backend->dump(false /*unbuffered, write out*/);
         for (AccessTraceWriter* t : *(zinfo->traceWriters)) t->dump(false);  // flushes trace writer
 

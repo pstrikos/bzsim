@@ -138,6 +138,12 @@ class ContentionSim : public GlobAlloc {
 
         void initStats(AggregateStat* parentStat);
 
+#ifdef _WITH_BOOKSIM_
+        void displayNocStats(){
+            topNoc->DisplayStats();
+        }
+#endif
+
         void postInit(); //must be called after the simulator is initialized
 
         void enqueue(TimingEvent* ev, uint64_t cycle);
