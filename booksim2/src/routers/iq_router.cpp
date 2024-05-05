@@ -2239,7 +2239,7 @@ void IQRouter::_OutputQueuing( )
 void IQRouter::_SendFlits( )
 {
   for ( int output = 0; output < _outputs; ++output ) {
-    if ( !_output_buffer[output].empty( ) ) {
+    if ( !_output_buffer[output].empty( ) && _output_channels[output]->IsEmpty() ) {
       Flit * const f = _output_buffer[output].front( );
       assert(f);
       _output_buffer[output].pop( );

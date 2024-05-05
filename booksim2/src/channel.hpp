@@ -55,6 +55,7 @@ public:
   // Physical Parameters
   void SetLatency(int cycles);
   int GetLatency() const { return _delay ; }
+  bool IsEmpty();
   
   // Send data 
   virtual void Send(T * data);
@@ -103,6 +104,11 @@ void Channel<T>::ReadInputs() {
     _wait_queue.push(make_pair(GetSimTime() + _delay - 1, _input));
     _input = 0;
   }
+}
+
+template<typename T>
+bool Channel<T>::IsEmpty() {
+    return _wait_queue.empty();
 }
 
 template<typename T>
