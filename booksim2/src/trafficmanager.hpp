@@ -34,6 +34,10 @@
 #include <set>
 #include <cassert>
 
+#ifdef EXTRA_STATS
+#include <numeric>
+#endif
+
 #include "module.hpp"
 #include "config_utils.hpp"
 #include "network.hpp"
@@ -190,11 +194,12 @@ protected:
   vector<double> _overall_min_sent_packets;
   vector<double> _overall_avg_sent_packets;
   vector<double> _overall_max_sent_packets;
-  vector<vector<int> > _accepted_packets;
+  vector<vector<int> > _accepted_packets, _injected_packets, _ejected_packets;
+  vector<vector<int> > _injected_interchiplet_packets;
   vector<double> _overall_min_accepted_packets;
   vector<double> _overall_avg_accepted_packets;
   vector<double> _overall_max_accepted_packets;
-  vector<vector<int> > _sent_flits;
+  vector<vector<int> > _sent_flits; // number of flits injected to each router
   vector<double> _overall_min_sent;
   vector<double> _overall_avg_sent;
   vector<double> _overall_max_sent;
@@ -216,6 +221,12 @@ protected:
   vector<double> _overall_crossbar_conflict_stalls;
 #endif
 
+#ifdef EXTRA_STATS
+  vector<vector<int>> _createdPackets; // tracks the number of packet that each src creates for all destinations
+  vector<int> _createdFlits;
+  vector<vector<int>> _createdPacketsLLC; // tracks the number of packet that each src creates for all destinations
+  vector<vector<int>> _createdPacketsRest; // tracks the number of packet that each src creates for all destinations
+#endif
   vector<int> _slowest_packet;
   vector<int> _slowest_flit;
 
@@ -309,7 +320,7 @@ public:
   int getVCs(){ return _vcs;}
   int getNodes(){ return _nodes;}
   void _ManuallyInjectPacket(int source, int dest, int size, int ctime);
-  uint64_t _ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr);
+  uint64_t _ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, bool llcEvent, BookSimNetwork *nocAddr);
 
   static TrafficManager * New(Configuration const & config, 
 			      vector<Network *> const & net, InterconnectInterface* parentInterface);

@@ -39,7 +39,6 @@
 #include "random_utils.hpp" 
 #include "vc.hpp"
 #include "packet_reply_info.hpp"
-
 // #define TRACK_INJECTION
 // #define CALC_INJECTION_RATE
 #ifdef CALC_INJECTION_RATE
@@ -507,6 +506,8 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     _overall_avg_sent_packets.resize(_classes, 0.0);
     _overall_max_sent_packets.resize(_classes, 0.0);
     _accepted_packets.resize(_classes);
+    _injected_packets.resize(_classes);
+    _ejected_packets.resize(_classes);
     _overall_min_accepted_packets.resize(_classes, 0.0);
     _overall_avg_accepted_packets.resize(_classes, 0.0);
     _overall_max_accepted_packets.resize(_classes, 0.0);
@@ -519,6 +520,13 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     _overall_min_accepted.resize(_classes, 0.0);
     _overall_avg_accepted.resize(_classes, 0.0);
     _overall_max_accepted.resize(_classes, 0.0);
+
+#ifdef EXTRA_STATS
+    _createdPackets.resize(_classes);
+    _createdFlits.resize(_classes);
+    _createdPacketsLLC.resize(_classes);
+    _createdPacketsRest.resize(_classes);
+#endif
 
 #ifdef TRACK_STALLS
     _buffer_busy_stalls.resize(_classes);
@@ -569,8 +577,21 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
 
         _sent_packets[c].resize(_nodes, 0);
         _accepted_packets[c].resize(_nodes, 0);
+        _ejected_packets[c].resize(_nodes,0);
+        _injected_packets[c].resize(_nodes, 0);
         _sent_flits[c].resize(_nodes, 0);
         _accepted_flits[c].resize(_nodes, 0);
+#ifdef EXTRA_STATS
+        _createdPackets.resize(gX*gY);
+        _createdFlits.resize(gX*gY);
+        _createdPacketsLLC.resize(gX*gY);
+        _createdPacketsRest.resize(gX*gY);
+        for(int n = 0; n < gX*gY; n++){
+            _createdPackets[n].resize(gX*gY,0);
+            _createdPacketsLLC[n].resize(gX*gY,0);
+            _createdPacketsRest[n].resize(gX*gY,0);
+        }
+#endif
 
 #ifdef TRACK_STALLS
         _buffer_busy_stalls[c].resize(_subnets*_routers, 0);
@@ -912,6 +933,9 @@ void TrafficManager::_Step( )
                         if(f->tail) {
                             ++_accepted_packets[f->cl][n];
                         }
+                        if(f->head) {
+                            ++_ejected_packets[f->cl][f->src];
+                        }
                     }
 
                     outstandingFlits[subnet][n] -= 1; // node n just injected one flit
@@ -1210,6 +1234,8 @@ void TrafficManager::_Step( )
                     ++_injected_flits[c][n];
     #endif
         
+
+
                     // allocation is finished so WRITE the flit to the router's input channel's _input
                     // sets _inject[n]._input = f
                     _net[subnet]->WriteFlit(f, n);  
@@ -1448,7 +1474,7 @@ void TrafficManager::_UpdateOverallStats() {
         rate_min = (double)count_min / time_delta;
         rate_sum = (double)count_sum / time_delta;
         rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
+        rate_avg = rate_sum / (double) (gX * gY); //(double)_nodes;
         _overall_min_sent[c] += rate_min;
         _overall_avg_sent[c] += rate_avg;
         _overall_max_sent[c] += rate_max;
@@ -1456,7 +1482,7 @@ void TrafficManager::_UpdateOverallStats() {
         rate_min = (double)count_min / time_delta;
         rate_sum = (double)count_sum / time_delta;
         rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
+        rate_avg = rate_sum /  (double) (gX * gY); //(double)_nodes;
         _overall_min_sent_packets[c] += rate_min;
         _overall_avg_sent_packets[c] += rate_avg;
         _overall_max_sent_packets[c] += rate_max;
@@ -1464,7 +1490,7 @@ void TrafficManager::_UpdateOverallStats() {
         rate_min = (double)count_min / time_delta;
         rate_sum = (double)count_sum / time_delta;
         rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
+        rate_avg = rate_sum /  (double) (gX * gY); //(double)_nodes;
         _overall_min_accepted[c] += rate_min;
         _overall_avg_accepted[c] += rate_avg;
         _overall_max_accepted[c] += rate_max;
@@ -1472,7 +1498,7 @@ void TrafficManager::_UpdateOverallStats() {
         rate_min = (double)count_min / time_delta;
         rate_sum = (double)count_sum / time_delta;
         rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
+        rate_avg = rate_sum /  (double) (gX * gY); //(double)_nodes;
         _overall_min_accepted_packets[c] += rate_min;
         _overall_avg_accepted_packets[c] += rate_avg;
         _overall_max_accepted_packets[c] += rate_max;
@@ -1847,7 +1873,21 @@ void TrafficManager::DisplayOverallStats( ostream & os ) const {
            << " (" << _total_sims << " samples)" << endl;
         os << "\tmaximum = " << _overall_max_sent_packets[c] / (double)_total_sims
            << " (" << _total_sims << " samples)" << endl;
-    
+ #ifdef EXTRA_STATS    
+        os << "Injected packets:" << endl
+           << "\tper router [";
+        uint64_t totalpackets = 0;
+        for(auto i = _accepted_packets[c].begin(); i != _accepted_packets[c].end(); ++i){
+            os << (*i) << " ";
+            totalpackets += *i;
+        }
+        os << "]" << std::endl;
+
+        os << "\tper interchiplet link " << endl 
+           << _net[c]->printInterChipletPackets() << std::endl;
+
+        os << "\ttotal = " << totalpackets << endl;
+#endif
         os << "Accepted packet rate average = " << _overall_avg_accepted_packets[c] / (double)_total_sims
            << " (" << _total_sims << " samples)" << endl;
         os << "\tminimum = " << _overall_min_accepted_packets[c] / (double)_total_sims
@@ -1877,6 +1917,17 @@ void TrafficManager::DisplayOverallStats( ostream & os ) const {
     
         os << "Hops average = " << _overall_hop_stats[c] / (double)_total_sims
            << " (" << _total_sims << " samples)" << endl;
+
+#ifdef EXTRA_STATS
+        os << "Created packets from LLC - src-dst pairs of routers:" << endl;
+        for(int src = 0; src < gX*gY; src++){
+            os << "\t" << src << ": [" << _createdPacketsLLC[src] << "]" << endl;
+        }
+        os << "Created packets from rest of caches - src-dst pairs of routers:" << endl;
+        for(int src = 0; src < gX*gY; src++){
+            os << "\t" << src << ": [" << _createdPacketsRest[src] << "]" << endl;
+        }
+#endif
     
 #ifdef TRACK_STALLS
         os << "Buffer busy stall rate = " << (double)_overall_buffer_busy_stalls[c] / (double)_total_sims
@@ -2078,7 +2129,7 @@ void TrafficManager::printInjectedPackets() {
      "++++++++++++++++++++++++++++++++++++++++++" << endl;
 }
 
-uint64_t TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr){
+uint64_t TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, bool llcEvent, BookSimNetwork *nocAddr){
     // The packets here are used by zsim, so no warmup stage is needed.
     // In running stage, record is always one and the packets are also
     // inserted in the _measured_in_flight_flits vector as well.
@@ -2135,6 +2186,7 @@ uint64_t TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size,
         f->ctime  = ctime; // the packet carries the _time that was created 
         f->record = record;
         f->cl     = cl;
+        f->llcEvent = llcEvent;
 
 
         //contains all the newly generated flits. 
@@ -2183,6 +2235,15 @@ uint64_t TrafficManager::_ManuallyGeneratePacket(int source, int dest, int size,
         #endif
     }
 
+#ifdef EXTRA_STATS
+    ++_createdPackets[source][dest];
+    _createdFlits[source] += size;
+    if(llcEvent){
+        ++_createdPacketsLLC[source][dest];
+    } else {
+        ++_createdPacketsRest[source][dest];
+    }
+#endif
     outstandingFlits[subnetwork][source] += size;
     return pid;
 #endif

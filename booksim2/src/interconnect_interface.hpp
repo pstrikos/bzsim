@@ -55,7 +55,7 @@ public:
   static InterconnectInterface* New(const char* const config_file);
   void CreateInterconnect();
   
-  uint64_t ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, BookSimNetwork *nocAddr);
+  uint64_t ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, bool llcEvent, BookSimNetwork *nocAddr);
   void Step();
 
   void RegisterCallbacksInterface(booksim::TransactionCompleteCB *readDone, booksim::TransactionCompleteCB *writeDone, BookSimNetwork *nocAddr);

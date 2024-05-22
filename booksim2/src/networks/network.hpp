@@ -54,6 +54,7 @@ protected:
   int _classes;
 
   vector<Router *> _routers;
+  vector<int> _interchiplet_routers;
 
   vector<FlitChannel *> _inject;
   vector<CreditChannel *> _inject_cred;
@@ -114,6 +115,8 @@ public:
   Router * GetRouter(int index) {return _routers[index];}
   int NumRouters() const {return _size;}
   void setOutstandingFlits(std::vector<int> *outstandingFlits);
+  void ReadInterChipletLinks( const Configuration &config );
+  string printInterChipletPackets();
 };
 
 #endif 
