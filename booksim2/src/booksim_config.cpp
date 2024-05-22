@@ -172,7 +172,11 @@ BookSimConfig::BookSimConfig( )
   AddStrField("injection_rate", ""); // workaraound to allow for vector specification
   
   _int_map["injection_rate_uses_flits"] = 0;
-
+  
+#ifdef EXTRA_STATS
+  _int_map["interchiplet_routers"];
+  AddStrField("interchiplet_routers", "");
+#endif
   // number of flits per packet
   _int_map["packet_size"] = 1;
   AddStrField("packet_size", ""); // workaraound to allow for vector specification

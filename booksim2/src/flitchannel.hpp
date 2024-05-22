@@ -72,6 +72,26 @@ public:
     return _active;
   }
 
+  inline bool const getIsLocalChannel(){
+    return isLocalChannel;
+  }
+
+  inline void setInterchipletChannel(bool const _isInterchipletChannel){
+    isInterchipletChannel = _isInterchipletChannel; 
+  }
+
+  inline bool const getInterchipletChannel(){
+    return isInterchipletChannel;
+  }
+
+  inline uint64_t getInterchipletPacketsLLC(){
+    return _interchiplet_packets_llc;
+  }
+
+  inline uint64_t getInterchipletPacketsRest(){
+    return _interchiplet_packets_rest;
+  }
+
   // Send flit 
   virtual void Send(Flit * flit);
 
@@ -85,6 +105,7 @@ public:
 private:
 
   bool isLocalChannel;
+  bool isInterchipletChannel;
   std::vector<int>* outstandingFlits; // counter indicating the outstanding flits in each router
 
   
@@ -102,6 +123,10 @@ private:
   // Statistics for Activity Factors
   vector<int> _active;
   int _idle;
+
+  bool isLocalChannel;
+  bool isInterchipletChannel;
+  uint64_t _interchiplet_packets_llc, _interchiplet_packets_rest;
 };
 
 #endif

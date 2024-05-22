@@ -115,6 +115,8 @@ Network * Network::New(const Configuration & config, const string & name)
     cerr << "Unknown topology: " << topo << endl;
   }
   
+  n->ReadInterChipletLinks(config);
+
   /*legacy code that insert random faults in the networks
    *not sure how to use this
    */
@@ -297,4 +299,45 @@ void Network::setOutstandingFlits(std::vector<int> *outstandingFlits){
       _routers[r]->setOutstandingFlits(outstandingFlits);
   }
   this->outstandingFlits = outstandingFlits;
+}
+
+void Network::ReadInterChipletLinks(const Configuration &config){
+  string interchiplet_routers_str = config.GetStr("interchiplet_routers");
+  if(interchiplet_routers_str.empty()){
+    return;
+  }
+
+
+  _interchiplet_routers.resize(gX*gY, 0);
+
+  vector<string> interchiplet_routers_string = tokenize_str(interchiplet_routers_str);
+  
+  for(size_t i = 0; i < interchiplet_routers_string.size(); ++i){
+      auto r = stoi(interchiplet_routers_string[i]);
+      _interchiplet_routers[r] = 1;  
+  }
+
+  for(FlitChannel* c : _chan){
+    if(!(c->getIsLocalChannel()) && _interchiplet_routers[c->GetSink()->GetID()] && _interchiplet_routers[c->GetSource()->GetID()]){
+      c->setInterchipletChannel(true);
+    }
+  }
+}
+
+
+string Network::printInterChipletPackets(){
+  ostringstream os;
+  os << "\t\t LLC  - ";
+  for(FlitChannel* c : _chan){
+    if(c->getInterchipletChannel()){
+      os << c->GetSource()->GetID() << "->" << c->GetSink()->GetID() << " : " << c->getInterchipletPacketsLLC() << ", ";
+    }
+  }
+  os << endl << "\t\t rest - ";
+  for(FlitChannel* c : _chan){
+    if(c->getInterchipletChannel()){
+      os << c->GetSource()->GetID() << "->" << c->GetSink()->GetID() << " : " << c->getInterchipletPacketsRest() << ", ";
+    }
+  }
+  return os.str();
 }
