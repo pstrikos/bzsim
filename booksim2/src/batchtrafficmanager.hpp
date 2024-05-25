@@ -53,7 +53,6 @@ protected:
 
   virtual void _RetireFlit( Flit *f, int dest );
 
-  virtual int _IssuePacket( int source, int cl );
   virtual void _ClearStats( );
   virtual bool _SingleSim( );
 

@@ -19,7 +19,7 @@ class BookSimAccEvent : public TimingEvent {
     public:
         uint64_t sCycle;
 
-        explicit BookSimAccEvent(BookSimNetwork* _noc, bool _write, Address _addr, int32_t domain, bool llcEvent, bool isInval = false) :  TimingEvent(0, 0, domain, isInval), noc(_noc), write(_write), addr(_addr), llcEvent(llcEvent) {}
+        explicit BookSimAccEvent(BookSimNetwork* _noc, bool _write, Address _addr, int32_t domain, bool llcEvent, bool externalEvent, bool isInval = false) :  TimingEvent(0, 0, domain, isInval), noc(_noc), write(_write), addr(_addr), llcEvent(llcEvent) {}
 
         bool isWrite() const {
             return write;
@@ -43,6 +43,7 @@ class BookSimAccEvent : public TimingEvent {
         }
 
         bool getLlcEvent() const { return llcEvent;}
+        bool getExternalEvent() const { return externalEvent;}
 
 };
 
@@ -72,6 +73,8 @@ BookSimNetwork::BookSimNetwork(const char* _name, int _id, InterconnectInterface
 
 void BookSimNetwork::enqueueTickEvent(){
     TickEvent<BookSimNetwork>* tickEv = new TickEvent<BookSimNetwork>(this, domain);
+    std::string tickname = "nocTickEvent"; 
+    tickEv->name = g_string(tickname.begin(), tickname.end());
     tickEv->queue(0);  // start the sim at time 0
 }
 
@@ -205,14 +208,14 @@ uint64_t BookSimNetwork::access(MemReq& req) {
 
         // First create a Transmit and a Receive event for accessing the memory.
         // The two events will be put before and after the DRAMSim event.
-        BookSimAccEvent* nocEvT = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, isWrite, addr, domain, isLlnoc);
+        BookSimAccEvent* nocEvT = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, isWrite, addr, domain, isLlnoc, isExternal);
         nocEvT->setMinStartCycle(req.cycle);
         nocEvT->setCoord(coordT); 
         nocEvT->setZll(zll);
 
         respCycle += nextLevelLat; 
         
-        BookSimAccEvent* nocEvR = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, isWrite, addr, domain, isLlnoc);
+        BookSimAccEvent* nocEvR = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, isWrite, addr, domain, isLlnoc, isExternal);
         nocEvR->setMinStartCycle(respCycle);
         nocEvR->setCoord(coordR);
         nocEvR->setZll(zll);
@@ -321,7 +324,7 @@ void BookSimNetwork::enqueue(BookSimAccEvent* ev, uint64_t cycle) {
     doubleCoordinates<int> coord = ev->getCoord();
     int _source = meshDim*(coord.src.x) + coord.src.y;
     int _dest = meshDim*(coord.dest.x) + coord.dest.y;
-    uint64_t curPid = nocIf->ManuallyGeneratePacket(_source, _dest, packetSize, -1, ev->getAddr(), ev->getLlcEvent(), this);
+    uint64_t curPid = nocIf->ManuallyGeneratePacket(_source, _dest, packetSize, -1, ev->getAddr(), ev->getLlcEvent(), ev->getExternalEvent(), this);
     inflightRequests.insert(std::pair<int,BookSimAccEvent*>(curPid, ev));
     ev->hold();
 }
@@ -348,7 +351,7 @@ uint64_t BookSimNetwork::invalidate(const InvReq& req){
     zll = zll*cpuFreq/nocFreq;
 
 
-    BookSimAccEvent* nocEvInvT = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, 0, req.lineAddr, 0, isLlnoc, true);
+    BookSimAccEvent* nocEvInvT = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, 0, req.lineAddr, 0, isLlnoc, false, true);
     
     nocEvInvT->setMinStartCycle(respCycle); // the packet is injected when the nocs parent calls the inval function
     nocEvInvT->setCoord(coordInvT);

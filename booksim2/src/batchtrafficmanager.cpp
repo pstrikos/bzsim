@@ -68,41 +68,6 @@ void BatchTrafficManager::_RetireFlit( Flit *f, int dest )
   TrafficManager::_RetireFlit(f, dest);
 }
 
-int BatchTrafficManager::_IssuePacket( int source, int cl )
-{
-  int result = 0;
-  if(_use_read_write[cl]) { //read write packets
-    //check queue for waiting replies.
-    //check to make sure it is on time yet
-    if(!_repliesPending[source].empty()) {
-      if(_repliesPending[source].front()->time <= _time) {
-	result = -1;
-      }
-    } else {
-      if((_packet_seq_no[source] < _batch_size) && 
-	 ((_max_outstanding <= 0) || 
-	  (_requestsOutstanding[source] < _max_outstanding))) {
-	
-	//coin toss to determine request type.
-	result = (RandomFloat() < 0.5) ? 2 : 1;
-      
-	_requestsOutstanding[source]++;
-      }
-    }
-  } else { //normal
-    if((_packet_seq_no[source] < _batch_size) && 
-       ((_max_outstanding <= 0) || 
-	(_requestsOutstanding[source] < _max_outstanding))) {
-      result = _GetNextPacketSize(cl);
-      _requestsOutstanding[source]++;
-    }
-  }
-  if(result != 0) {
-    _packet_seq_no[source]++;
-  }
-  return result;
-}
-
 void BatchTrafficManager::_ClearStats( )
 {
   TrafficManager::_ClearStats();

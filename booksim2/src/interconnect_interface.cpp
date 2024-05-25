@@ -103,7 +103,6 @@ void InterconnectInterface::CreateInterconnect()
   // assert(_icnt_config->GetStr("sim_type") == "gpgpusim");
   _traffic_manager = TrafficManager::New( *_icnt_config, _net, this) ;
   iN = _traffic_manager->getNodes();
-  _flit_size = _icnt_config->GetInt( "flit_size" );
 
   // Config for interface buffers
   if (_icnt_config->GetInt("ejection_buffer_size")) {
@@ -147,7 +146,7 @@ void InterconnectInterface::Init()
   _traffic_manager->Init();
 }
 
-uint64_t InterconnectInterface::ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, bool llcEvent, BookSimNetwork *nocAddr){
+uint64_t InterconnectInterface::ManuallyGeneratePacket(int source, int dest, int size, simTime ctime, uint64_t addr, bool llcEvent, bool externalEvent, BookSimNetwork *nocAddr){
     outStandingPackets++;
     uint64_t packId = _traffic_manager->_ManuallyGeneratePacket(source,  dest,  size,  ctime, addr, llcEvent, nocAddr);
     return packId;

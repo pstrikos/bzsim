@@ -88,6 +88,10 @@ public:
     return _interchiplet_packets_llc;
   }
 
+  inline uint64_t getInterchipletPacketsExt(){
+    return _interchiplet_packets_ext;
+  }
+
   inline uint64_t getInterchipletPacketsRest(){
     return _interchiplet_packets_rest;
   }
@@ -104,8 +108,7 @@ public:
 
 private:
 
-  bool isLocalChannel;
-  bool isInterchipletChannel;
+  
   std::vector<int>* outstandingFlits; // counter indicating the outstanding flits in each router
 
   
