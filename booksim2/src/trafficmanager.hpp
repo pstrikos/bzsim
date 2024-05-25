@@ -226,6 +226,7 @@ protected:
   vector<int> _createdFlits;
   vector<vector<int>> _createdPacketsLLC; // tracks the number of packet that each src creates for all destinations
   vector<vector<int>> _createdPacketsRest; // tracks the number of packet that each src creates for all destinations
+  vector<vector<int>> _latency_introduced;
 #endif
   vector<int> _slowest_packet;
   vector<int> _slowest_flit;
@@ -298,7 +299,6 @@ protected:
 
   bool _PacketsOutstanding( ) const;
   
-  virtual int  _IssuePacket( int source, int cl );
   void _GeneratePacket( int source, int size, int cl, int time );
 
   virtual void _ClearStats( );

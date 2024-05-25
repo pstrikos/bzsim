@@ -104,8 +104,7 @@ public:
 
 private:
 
-  bool isLocalChannel;
-  bool isInterchipletChannel;
+  
   std::vector<int>* outstandingFlits; // counter indicating the outstanding flits in each router
 
   

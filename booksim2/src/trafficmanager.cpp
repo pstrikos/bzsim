@@ -526,6 +526,7 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     _createdFlits.resize(_classes);
     _createdPacketsLLC.resize(_classes);
     _createdPacketsRest.resize(_classes);
+    _latency_introduced.resize(_classes);
 #endif
 
 #ifdef TRACK_STALLS
@@ -586,6 +587,7 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
         _createdFlits.resize(gX*gY);
         _createdPacketsLLC.resize(gX*gY);
         _createdPacketsRest.resize(gX*gY);
+        _latency_introduced[c].resize(gX*gY,0);
         for(int n = 0; n < gX*gY; n++){
             _createdPackets[n].resize(gX*gY,0);
             _createdPacketsLLC[n].resize(gX*gY,0);
@@ -747,7 +749,10 @@ void TrafficManager::_RetireFlit( Flit *f, int dest )
                    << ", flat = " << f->atime - f->itime
                    << ")." << endl;
     }
-    
+
+#ifdef EXTRA_STATS
+    _latency_introduced[f->cl][f->src] +=  f->atime - f->itime;
+#endif
     if ( f->head && ( f->dest != dest ) ) {
         ostringstream err;
         err << "Flit " << f->id << " arrived at incorrect output " << dest;
@@ -837,38 +842,6 @@ void TrafficManager::_RetireFlit( Flit *f, int dest )
     }
 }
 
-int TrafficManager::_IssuePacket( int source, int cl ) 
-{
-    int result = 0;
-    if(_use_read_write[cl]){ //use read and write
-        //check queue for waiting replies.
-        //check to make sure it is on time yet
-        if (!_repliesPending[source].empty()) {
-            if(_repliesPending[source].front()->time <= _time) {
-                result = -1;
-            }
-        } else {
-      
-            //produce a packet
-            if(_injection_process[cl]->test(source)) {
-	
-                //coin toss to determine request type.
-                result = (RandomFloat() < _write_fraction[cl]) ? 2 : 1;
-	
-                // increase every time a new packet will be created 
-                _requestsOutstanding[source]++;  
-             }
-        }
-    } else { //normal mode
-        result = _injection_process[cl]->test(source) ? 1 : 0;
-        _requestsOutstanding[source]++;
-    } 
-    if(result != 0) {
-        _packet_seq_no[source]++;
-    }
-    return result;
-}
-
 void TrafficManager::_Step( )
 {   
     cntStepCalls++;
@@ -932,8 +905,6 @@ void TrafficManager::_Step( )
                         ++_accepted_flits[f->cl][n];
                         if(f->tail) {
                             ++_accepted_packets[f->cl][n];
-                        }
-                        if(f->head) {
                             ++_ejected_packets[f->cl][f->src];
                         }
                     }
@@ -1927,6 +1898,31 @@ void TrafficManager::DisplayOverallStats( ostream & os ) const {
         for(int src = 0; src < gX*gY; src++){
             os << "\t" << src << ": [" << _createdPacketsRest[src] << "]" << endl;
         }
+        os << "Created flits - (src-dst pairs of routers):" << endl
+            << "\tper router [ " << _createdFlits << " ] " << endl
+            << "\ttotal " << std::accumulate(_createdFlits.begin(), _createdFlits.end(), 0) << endl;
+
+        os << "Injected flits: " << endl
+           << "\tper router [ " << _sent_flits << " ] " << endl
+           << "\ttotal " << std::accumulate(_sent_flits[c].begin(), _sent_flits[c].end(), 0) << endl;
+
+        os << "Ejected flits TO router: " << endl
+           << "\tper router [ "<< _accepted_flits << " ]  " << endl
+           << "\ttotal " << std::accumulate(_accepted_flits[c].begin(), _accepted_flits[c].end(), 0) << endl;
+
+        os << "Ejected packets FROM router: " << endl
+           << "\tper router [ " << _ejected_packets << " ] " << endl
+           << "\ttotal " << std::accumulate(_ejected_packets[c].begin(), _ejected_packets[c].end(), 0) << endl;
+
+        os << "Latency introduced per router: " << endl
+            << " [ " << _latency_introduced << " ] " << endl;
+
+        os << "Outstanding flits " << endl
+           << "\tper router [ " << outstandingFlits[0] << " ]" << endl
+           << "\ttotal " << std::accumulate(outstandingFlits[0].begin(), outstandingFlits[0].end(), 0) << endl;
+
+        os << "\tper interchiplet link " << endl 
+           << _net[c]->printInterChipletPackets() << std::endl;
 #endif
     
 #ifdef TRACK_STALLS

@@ -71,7 +71,7 @@ public:
   int getPacketSize(){ return packetSize;}
   int getHopDelay(){ return hopDelay;}
   uint64_t getNocCurCycle(){return nocCurCycle;}
-  void setNocCurCycle(uint64_t cycle){nocCurCycle = cycle;}
+  void setNocCurCycle(simTime cycle){nocCurCycle = cycle;}
   int getCntStepCalls(){return cntStepCalls;}
   int getNodes();
 
@@ -110,7 +110,6 @@ protected:
   
 
   TrafficManager* _traffic_manager;
-  unsigned _flit_size;
   IntersimConfig* _icnt_config;
   vector<Network *> _net;
   int _vcs;
@@ -123,10 +122,10 @@ protected:
 
 private:
   int stepsBeforeUpdateStats, stepsCnt;
-  int cntStepCalls = 0;
+  uint64_t cntStepCalls = 0;
   int outStandingPackets = 0;
-  int skippedSteps = 0;
-  int nonSkippedSteps = 0;
+  uint64_t skippedSteps = 0;
+  uint64_t nonSkippedSteps = 0;
   std::map<BookSimNetwork*,Callback_t*> ReturnReadData;
   Callback_t* WriteDataDone;
 

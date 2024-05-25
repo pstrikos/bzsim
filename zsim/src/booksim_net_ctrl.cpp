@@ -72,6 +72,8 @@ BookSimNetwork::BookSimNetwork(const char* _name, int _id, InterconnectInterface
 
 void BookSimNetwork::enqueueTickEvent(){
     TickEvent<BookSimNetwork>* tickEv = new TickEvent<BookSimNetwork>(this, domain);
+    std::string tickname = "nocTickEvent"; 
+    tickEv->name = g_string(tickname.begin(), tickname.end());
     tickEv->queue(0);  // start the sim at time 0
 }
 

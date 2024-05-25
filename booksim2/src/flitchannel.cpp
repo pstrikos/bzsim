@@ -47,7 +47,7 @@
 // ----------------------------------------------------------------------
 FlitChannel::FlitChannel(Module * parent, string const & name, int classes, bool isLocalChannel)
 : Channel<Flit>(parent, name), _routerSource(NULL), _routerSourcePort(-1), 
-  _routerSink(NULL), _routerSinkPort(-1), _idle(0), isInterchipletChannel(false), _interchiplet_packets_llc(0), _interchiplet_packets_rest(0){
+  _routerSink(NULL), _routerSinkPort(-1), _idle(0), isInterchipletChannel(false), _interchiplet_packets_llc(0), _interchiplet_packets_rest(0) {
   _active.resize(classes, 0);
   this->isLocalChannel = isLocalChannel; 
 }
