@@ -209,7 +209,7 @@ uint64_t BookSimNetwork::access(MemReq& req) {
         nocEvT->setMinStartCycle(req.cycle);
         nocEvT->setCoord(coordT); 
         nocEvT->setZll(zll);
-        
+
         respCycle += nextLevelLat; 
         
         BookSimAccEvent* nocEvR = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, isWrite, addr, domain, isLlnoc);
@@ -255,14 +255,8 @@ uint64_t BookSimNetwork::access(MemReq& req) {
                     // the doneCycle + postDelay and doneCycle will hopefully be minCylce + zll
                     nocEvT->setPostDelay(firstEv->getMinStartCycle()-req.cycle-zll);
                 }
-                while(lastEv->getNumChildren() > 0){
-                    if (lastEv->getNumChildren() == 1){
-                        lastEv = lastEv->getChild();
-                    }
-                    else {
-                        lastEv = lastEv->getSelectedChild(1);
-                    }
-                }
+                lastEv = lastEv->getChildLeftDescendant();
+                
 
                 (nocEvT)->addChild(firstEv, evRec);
                 lastEv->addChild(nocEvR, evRec);
