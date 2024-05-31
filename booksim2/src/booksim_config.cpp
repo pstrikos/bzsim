@@ -172,6 +172,9 @@ BookSimConfig::BookSimConfig( )
   AddStrField("injection_rate", ""); // workaraound to allow for vector specification
   
   _int_map["injection_rate_uses_flits"] = 0;
+
+  _int_map["endpoint_routers"];
+  AddStrField("endpoint_routers", ""); // routers that should only be used as end points in anymap
   
 #ifdef EXTRA_STATS
   _int_map["interchiplet_routers"];
