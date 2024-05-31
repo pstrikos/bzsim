@@ -209,6 +209,17 @@ void AnyNet::_BuildNet( const Configuration &config ){
     }
   }
 
+  string endpoint_routers_str = config.GetStr("endpoint_routers");
+  if(!endpoint_routers_str.empty()){
+    endpointRouters.resize(gX*gY, 0);
+    vector<string> endpoint_routers_string = tokenize_str(endpoint_routers_str);
+  
+    for(size_t i = 0; i < endpoint_routers_string.size(); ++i){
+        auto r = stoi(endpoint_routers_string[i]);
+        endpointRouters[r] = 1;  
+    }
+  }
+
   buildRoutingTable();
 
 }
@@ -261,8 +272,8 @@ void AnyNet::buildRoutingTable(){
 //basically djistra's, tested on a large dragonfly anynet configuration
 void AnyNet::route(int r_start){
   int* dist = new int[_size];
-  int* prev = new int[_size];
-  set<int> rlist;
+  int* prev = new int[_size]; // array to store the previous router in the shortest path
+  set<int> rlist; // set of routers that need to be processed 
   for(int i = 0; i<_size; i++){
     dist[i] =  numeric_limits<int>::max();
     prev[i] = -1;
@@ -270,27 +281,39 @@ void AnyNet::route(int r_start){
   }
   dist[r_start] = 0;
   while(!rlist.empty()){
-    //find min 
+    //From the router's that are left, select the one closer to the current node
+    // At first this is going to be the router attached to the node,
+    // which will be removed at the end of the first iterration, and the next closest will be selected
+    // until all the routers in the network have been selected 
     int min_dist = numeric_limits<int>::max();
     int min_cand = -1;
-    for(set<int>::iterator i = rlist.begin();
-	i!=rlist.end();
-	i++){
+    for(set<int>::iterator i = rlist.begin(); i!=rlist.end(); i++){
       if(dist[*i]<min_dist){
-	min_dist = dist[*i];
-	min_cand = *i;
+          min_dist = dist[*i];
+          min_cand = *i;
       }
     }
     rlist.erase(min_cand);
+    // for every neighbor of the selected router (ie min_cand) found in the router_list[1]
+    for(map<int,pair<int,int> >::iterator i = router_list[1][min_cand].begin(); i!=router_list[1][min_cand].end(); i++){
 
-    //neighbor
-    for(map<int,pair<int,int> >::iterator i = router_list[1][min_cand].begin(); 
-	i!=router_list[1][min_cand].end(); 
-	i++){
+      // Skip connections from a non-endpoint router to another non-endpoint THROUGH an endpoint router
+      if(!endpointRouters.empty() && !endpointRouters[r_start] && endpointRouters[min_cand] && !endpointRouters[i->first]){
+        // cout<<"Skipping connection from node "<< r_start <<" to node "<< i->first << " through node " << min_cand <<endl;
+        continue;
+      } 
+
+      // calculate the distance from the neighbor 
+      // The total distance is the distance from the node to the currently selected min router (which has been calculated in another iterration)
+      // plus the distance from the min router to its neighbor. 
+      // Distance between current node an router can be calculated more than once since router i can have more than one neighbors. 
+      // For example, for node 0, the ditance 0->8 will be calculate when min_cand is 2,7,8 and 14
       int new_dist = dist[min_cand] + i->second.second;//distance is hops not cycles
-      if(new_dist < dist[i->first]){
-	dist[i->first] = new_dist;
-	prev[i->first] = min_cand;
+      // if what I calculated is smaller that the distance already existed (at first dis[] is a max. number), store this as the new dist
+      // and set the min_cand as the previous of i, meaning that if I want to go from current to i, I have to go through min_cand
+      if(new_dist < dist[i->first]){ // i->first is the actual node
+        dist[i->first] = new_dist; // the distance from node to i is new_distance
+        prev[i->first] = min_cand; // when going from node to i, the last node to pass is min_cand
       }
     }
   }
