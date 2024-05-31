@@ -2264,7 +2264,7 @@ void IQRouter::_SendFlits( )
 void IQRouter::_SendCredits( )
 {
   for ( int input = 0; input < _inputs; ++input ) {
-    if ( !_credit_buffer[input].empty( ) ) {
+    if ( !_credit_buffer[input].empty( ) && _input_credits[input]->IsEmpty() ) {
       Credit * const c = _credit_buffer[input].front( );
       assert(c);
       _credit_buffer[input].pop( );
