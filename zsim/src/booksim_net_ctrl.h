@@ -63,7 +63,6 @@ class BookSimNetwork : public BaseCache {
 
     public:
         BookSimNetwork(const char* _name, int _id, InterconnectInterface* _interface, int _cpuClk);
-
         void enqueueTickEvent();
         const char* getName() {return name.c_str();}
         int getMemId() {

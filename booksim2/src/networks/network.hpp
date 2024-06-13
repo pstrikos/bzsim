@@ -115,8 +115,10 @@ public:
   Router * GetRouter(int index) {return _routers[index];}
   int NumRouters() const {return _size;}
   void setOutstandingFlits(std::vector<int> *outstandingFlits);
+#ifdef EXTRA_STATS
   void ReadInterChipletLinks( const Configuration &config );
   string printInterChipletPackets();
+#endif
 };
 
 #endif 
