@@ -72,8 +72,6 @@ BookSimNetwork::BookSimNetwork(const char* _name, int _id, InterconnectInterface
 
 void BookSimNetwork::enqueueTickEvent(){
     TickEvent<BookSimNetwork>* tickEv = new TickEvent<BookSimNetwork>(this, domain);
-    std::string tickname = "nocTickEvent"; 
-    tickEv->name = g_string(tickname.begin(), tickname.end());
     tickEv->queue(0);  // start the sim at time 0
 }
 
@@ -211,7 +209,6 @@ uint64_t BookSimNetwork::access(MemReq& req) {
         nocEvT->setMinStartCycle(req.cycle);
         nocEvT->setCoord(coordT); 
         nocEvT->setZll(zll);
-
         respCycle += nextLevelLat; 
         
         BookSimAccEvent* nocEvR = new (zinfo->eventRecorders[req.srcId]) BookSimAccEvent(this, isWrite, addr, domain, isLlnoc);
@@ -436,7 +433,7 @@ uint64_t BookSimNetwork::invalidate(const InvReq& req){
 void BookSimNetwork::noc_read_return_cb(uint32_t id, uint64_t pid, uint64_t latency) {
     futex_lock(&cb_lock);
 
-    int curCycle = (nocIf->getNocCurCycle())*cpuFreq/nocFreq;  
+    uint64_t curCycle = (nocIf->getNocCurCycle())*cpuFreq/nocFreq;  
     std::unordered_map<uint64_t, BookSimAccEvent*>::iterator it = inflightRequests.find(pid);
 
     if(it == inflightRequests.end()){

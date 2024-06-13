@@ -114,8 +114,10 @@ Network * Network::New(const Configuration & config, const string & name)
   } else {
     cerr << "Unknown topology: " << topo << endl;
   }
-  
+
+#ifdef EXTRA_STATS
   n->ReadInterChipletLinks(config);
+#endif
 
   /*legacy code that insert random faults in the networks
    *not sure how to use this
@@ -301,12 +303,13 @@ void Network::setOutstandingFlits(std::vector<int> *outstandingFlits){
   this->outstandingFlits = outstandingFlits;
 }
 
+#ifdef EXTRA_STATS
+
 void Network::ReadInterChipletLinks(const Configuration &config){
   string interchiplet_routers_str = config.GetStr("interchiplet_routers");
   if(interchiplet_routers_str.empty()){
     return;
   }
-
 
   _interchiplet_routers.resize(gX*gY, 0);
 
@@ -327,13 +330,13 @@ void Network::ReadInterChipletLinks(const Configuration &config){
 
 string Network::printInterChipletPackets(){
   ostringstream os;
-  os << "\t\t LLC  - ";
+  os << "\t\t LLC - Mem ";
   for(FlitChannel* c : _chan){
     if(c->getInterchipletChannel()){
       os << c->GetSource()->GetID() << "->" << c->GetSink()->GetID() << " : " << c->getInterchipletPacketsLLC() << ", ";
     }
   }
-  os << endl << "\t\t rest - ";
+  os << endl << "\t\t L2 - LLC ";
   for(FlitChannel* c : _chan){
     if(c->getInterchipletChannel()){
       os << c->GetSource()->GetID() << "->" << c->GetSink()->GetID() << " : " << c->getInterchipletPacketsRest() << ", ";
@@ -341,3 +344,4 @@ string Network::printInterChipletPackets(){
   }
   return os.str();
 }
+#endif
