@@ -107,6 +107,8 @@ class IQRouter : public Router {
   vector<vector<int> > _noq_next_vc_start;
   vector<vector<int> > _noq_next_vc_end;
 
+  bool _active_links; // used to intdicate an active interposer, i.e pipelined inter-chiplet links
+
 #ifdef TRACK_FLOWS
   vector<vector<queue<int> > > _outstanding_classes;
 #endif

@@ -171,6 +171,8 @@ IQRouter::IQRouter( Configuration const & config, Module *parent,
   _bufferMonitor = new BufferMonitor(inputs, _classes);
   _switchMonitor = new SwitchMonitor(inputs, outputs, _classes);
 
+  _active_links = config.GetInt( "active_links" );
+
 #ifdef TRACK_FLOWS
   for(int c = 0; c < _classes; ++c) {
     _stored_flits[c].resize(_inputs, 0);
@@ -2239,7 +2241,7 @@ void IQRouter::_OutputQueuing( )
 void IQRouter::_SendFlits( )
 {
   for ( int output = 0; output < _outputs; ++output ) {
-    if ( !_output_buffer[output].empty( ) && _output_channels[output]->IsEmpty() ) {
+    if ( !_output_buffer[output].empty( ) && (_active_links || _output_channels[output]->IsEmpty()) ) {
       Flit * const f = _output_buffer[output].front( );
       assert(f);
       _output_buffer[output].pop( );
@@ -2264,7 +2266,7 @@ void IQRouter::_SendFlits( )
 void IQRouter::_SendCredits( )
 {
   for ( int input = 0; input < _inputs; ++input ) {
-    if ( !_credit_buffer[input].empty( ) && _input_credits[input]->IsEmpty() ) {
+    if ( !_credit_buffer[input].empty( ) && (_active_links || _input_credits[input]->IsEmpty()) ) {
       Credit * const c = _credit_buffer[input].front( );
       assert(c);
       _credit_buffer[input].pop( );
