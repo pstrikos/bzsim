@@ -180,6 +180,9 @@ BookSimConfig::BookSimConfig( )
   _int_map["interchiplet_routers"];
   AddStrField("interchiplet_routers", "");
 #endif
+
+  _int_map["active_links"] = 0;
+  
   // number of flits per packet
   _int_map["packet_size"] = 1;
   AddStrField("packet_size", ""); // workaraound to allow for vector specification
