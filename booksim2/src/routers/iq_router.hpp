@@ -177,6 +177,8 @@ public:
   virtual vector<int> FreeCredits() const;
   virtual vector<int> MaxCredits() const;
 
+  void IncVcBufferSize(int output, int lat);
+
   SwitchMonitor const * const GetSwitchMonitor() const {return _switchMonitor;}
   BufferMonitor const * const GetBufferMonitor() const {return _bufferMonitor;}
 

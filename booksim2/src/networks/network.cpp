@@ -115,9 +115,7 @@ Network * Network::New(const Configuration & config, const string & name)
     cerr << "Unknown topology: " << topo << endl;
   }
 
-#ifdef EXTRA_STATS
   n->ReadInterChipletLinks(config);
-#endif
 
   /*legacy code that insert random faults in the networks
    *not sure how to use this
@@ -303,31 +301,46 @@ void Network::setOutstandingFlits(std::vector<int> *outstandingFlits){
   this->outstandingFlits = outstandingFlits;
 }
 
-#ifdef EXTRA_STATS
-
 void Network::ReadInterChipletLinks(const Configuration &config){
   string interchiplet_routers_str = config.GetStr("interchiplet_routers");
+  int intrachiplet_link_speedup = config.GetInt("intrachiplet_link_speedup");
+  int interchiplet_vc_buf_size = config.GetInt("interchiplet_vc_buf_size");
+
   if(interchiplet_routers_str.empty()){
     return;
   }
 
   _interchiplet_routers.resize(gX*gY, 0);
-
   vector<string> interchiplet_routers_string = tokenize_str(interchiplet_routers_str);
-  
   for(size_t i = 0; i < interchiplet_routers_string.size(); ++i){
       auto r = stoi(interchiplet_routers_string[i]);
       _interchiplet_routers[r] = 1;  
   }
 
+
   for(FlitChannel* c : _chan){
-    if(!(c->getIsLocalChannel()) && _interchiplet_routers[c->GetSink()->GetID()] && _interchiplet_routers[c->GetSource()->GetID()]){
+    auto cSrc = c->GetSink()->GetID(), cDst = c->GetSource()->GetID();
+    if(!(c->getIsLocalChannel()) && _interchiplet_routers[cSrc] && _interchiplet_routers[cDst]){
       c->setInterchipletChannel(true);
+
+      // Set the vc buffer size of the output port of the router that the interchiplet link is connected to.
+      // We add one 2 more buffers for each extra cycle to cover the credit round trip delay. 
+      // Again, skip links between endpoint routers 
+      if(interchiplet_vc_buf_size > 0  && !(endpointRouters[cSrc] && endpointRouters[cDst])){
+        // std::cout << "Increasing " << cSrc << " -> " << cDst << " by " <<  c->GetLatency() - 1 << std::endl;
+        _routers[cSrc]->IncVcBufferSize(c->GetSourcePort(), c->GetLatency() - 1);
+      }
+
+      // If needed change the latency of *only* the data channels. The credit channels are not affected by this 
+      // We also skip channels that connect endpoint routers, in case for example they are located in the same IO chiplet
+      if(intrachiplet_link_speedup > 0 && !(endpointRouters[cSrc] && endpointRouters[cDst])){
+        c->SetLatency(intrachiplet_link_speedup*c->GetLatency());
+      }
     }
   }
 }
 
-
+#if EXTRA_STATS
 string Network::printInterChipletPackets(){
   ostringstream os;
   os << "\t\t LLC - Mem ";

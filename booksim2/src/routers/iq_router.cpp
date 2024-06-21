@@ -2385,3 +2385,7 @@ void IQRouter::_UpdateNOQ(int input, int vc, Flit const * f) {
     }
   }
 }
+
+void IQRouter::IncVcBufferSize(int output, int lat){
+  _next_buf[output]->IncVcBufferSize(lat);
+}

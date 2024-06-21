@@ -67,6 +67,8 @@ protected:
 
   deque<TimedModule *> _timed_modules;
 
+  vector<int> endpointRouters; // routers that can only be used as destinations, and not as intermediate hops (unless its a hop to another endpoint router)
+
   virtual void _ComputeSize( const Configuration &config ) = 0;
   virtual void _BuildNet( const Configuration &config ) = 0;
 
@@ -115,8 +117,8 @@ public:
   Router * GetRouter(int index) {return _routers[index];}
   int NumRouters() const {return _size;}
   void setOutstandingFlits(std::vector<int> *outstandingFlits);
-#ifdef EXTRA_STATS
   void ReadInterChipletLinks( const Configuration &config );
+#ifdef EXTRA_STATS
   string printInterChipletPackets();
 #endif
 };

@@ -96,6 +96,11 @@ BufferState::PrivateBufferPolicy::PrivateBufferPolicy(Configuration const & conf
   assert(_vc_buf_size > 0);
 }
 
+// add 2 buffers for each extra cycle of interchiplet link latency
+void BufferState::PrivateBufferPolicy::IncVcBufferSize(int lat){
+  _vc_buf_size += 2*lat;
+}
+
 void BufferState::PrivateBufferPolicy::SendingFlit(Flit const * const f)
 {
   int const vc = f->vc;
@@ -113,6 +118,7 @@ bool BufferState::PrivateBufferPolicy::IsFullFor(int vc) const
 
 int BufferState::PrivateBufferPolicy::AvailableFor(int vc) const
 {
+  std::cout << "vc buf = " << _vc_buf_size << std::endl;
   return _vc_buf_size - _buffer_state->OccupancyFor(vc);
 }
 

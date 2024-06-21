@@ -182,6 +182,8 @@ public:
   virtual vector<int> MaxCredits() const { return vector<int>(); }
 
   void Display( ostream & os = cout ) const;
+
+  virtual void IncVcBufferSize(int output, int size){Error("Not defined for this kind of router");}
 };
 
 #endif

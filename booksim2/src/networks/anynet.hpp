@@ -48,7 +48,6 @@ class AnyNet : public Network {
   //stores minimal routing information from every router to every node
   //[router][dest_node]=port
   vector<map<int, int> > routing_table;
-  vector<int> endpointRouters; // routers that can only be used as destinations, and not as intermediate hops (unless its a hop to another endpoint router)
 
   void _ComputeSize( const Configuration &config );
   void _BuildNet( const Configuration &config );
