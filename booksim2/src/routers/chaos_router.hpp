@@ -126,6 +126,8 @@ public:
   virtual vector<int> FreeCredits() const { return vector<int>(); }
   virtual vector<int> MaxCredits() const { return vector<int>(); }
 
+  virtual void IncVcBufferSize(int output, int lat){Error("Not defined for this kind of router");}
+
   void Display( ostream & os = cout ) const;
 };
 

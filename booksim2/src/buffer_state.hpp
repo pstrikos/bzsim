@@ -51,6 +51,7 @@ class BufferState : public Module {
     virtual bool IsFullFor(int vc = 0) const = 0;
     virtual int AvailableFor(int vc = 0) const = 0;
     virtual int LimitFor(int vc = 0) const = 0;
+    virtual void IncVcBufferSize(int lat) = 0;
 
     static BufferPolicy * New(Configuration const & config, 
 			      BufferState * parent, const string & name);
@@ -66,6 +67,7 @@ class BufferState : public Module {
     virtual bool IsFullFor(int vc = 0) const;
     virtual int AvailableFor(int vc = 0) const;
     virtual int LimitFor(int vc = 0) const;
+    virtual void IncVcBufferSize(int lat);
   };
   
   class SharedBufferPolicy : public BufferPolicy {
@@ -86,6 +88,7 @@ class BufferState : public Module {
     virtual bool IsFullFor(int vc = 0) const;
     virtual int AvailableFor(int vc = 0) const;
     virtual int LimitFor(int vc = 0) const;
+    virtual void IncVcBufferSize(int lat) {Error("Not designed for this type fort Buffer Policy");};
   };
 
   class LimitedSharedBufferPolicy : public SharedBufferPolicy {
@@ -102,6 +105,7 @@ class BufferState : public Module {
     virtual bool IsFullFor(int vc = 0) const;
     virtual int AvailableFor(int vc = 0) const;
     virtual int LimitFor(int vc = 0) const;
+    virtual void IncVcBufferSize(int lat) {Error("Not designed for this type fort Buffer Policy");};
   };
     
   class DynamicLimitedSharedBufferPolicy : public LimitedSharedBufferPolicy {
@@ -111,6 +115,7 @@ class BufferState : public Module {
 				     const string & name);
     virtual void TakeBuffer(int vc = 0);
     virtual void SendingFlit(Flit const * const f);
+    virtual void IncVcBufferSize(int lat) {Error("Not designed for this type fort Buffer Policy");};
   };
   
   class ShiftingDynamicLimitedSharedBufferPolicy : public DynamicLimitedSharedBufferPolicy {
@@ -120,6 +125,7 @@ class BufferState : public Module {
 					     const string & name);
     virtual void TakeBuffer(int vc = 0);
     virtual void SendingFlit(Flit const * const f);
+    virtual void IncVcBufferSize(int lat) {Error("Not designed for this type fort Buffer Policy");};
   };
   
   class FeedbackSharedBufferPolicy : public SharedBufferPolicy {
@@ -144,6 +150,7 @@ class BufferState : public Module {
     virtual bool IsFullFor(int vc = 0) const;
     virtual int AvailableFor(int vc = 0) const;
     virtual int LimitFor(int vc = 0) const;
+    virtual void IncVcBufferSize(int lat) {Error("Not designed for this type fort Buffer Policy");};
   };
   
   class SimpleFeedbackSharedBufferPolicy : public FeedbackSharedBufferPolicy {
@@ -154,6 +161,7 @@ class BufferState : public Module {
 				     BufferState * parent, const string & name);
     virtual void SendingFlit(Flit const * const f);
     virtual void FreeSlotFor(int vc = 0);
+    virtual void IncVcBufferSize(int lat) {Error("Not designed for this type fort Buffer Policy");};
   };
   
   bool _wait_for_tail_credit;
@@ -226,6 +234,10 @@ public:
     return _vc_occupancy[vc];
   }
   
+  inline void IncVcBufferSize(int lat){
+    _buffer_policy->IncVcBufferSize(lat);
+  }
+
 #ifdef TRACK_BUFFERS
   inline int OccupancyForClass(int c) const {
     assert((c >= 0) && (c < _classes));

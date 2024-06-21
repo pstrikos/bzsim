@@ -176,12 +176,12 @@ BookSimConfig::BookSimConfig( )
   _int_map["endpoint_routers"];
   AddStrField("endpoint_routers", ""); // routers that should only be used as end points in anymap
   
-#ifdef EXTRA_STATS
   _int_map["interchiplet_routers"];
   AddStrField("interchiplet_routers", "");
-#endif
 
   _int_map["active_links"] = 0;
+  _int_map["intrachiplet_link_speedup"] = 0;
+  _int_map["interchiplet_vc_buf_size"] = 0;
   
   // number of flits per packet
   _int_map["packet_size"] = 1;

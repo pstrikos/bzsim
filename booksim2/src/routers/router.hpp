@@ -133,6 +133,8 @@ public:
     this->outstandingFlit = outstandingFlits;
   }
 
+  virtual void IncVcBufferSize(int output, int lat) = 0;
+
 #ifdef TRACK_BUFFERS
   virtual int GetUsedCreditForClass(int output, int cl) const = 0;
   virtual int GetBufferOccupancyForClass(int input, int cl) const = 0;
