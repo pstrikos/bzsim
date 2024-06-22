@@ -327,8 +327,8 @@ void Network::ReadInterChipletLinks(const Configuration &config){
       // We add one 2 more buffers for each extra cycle to cover the credit round trip delay. 
       // Again, skip links between endpoint routers 
       if(interchiplet_vc_buf_size > 0  && !(endpointRouters[cSrc] && endpointRouters[cDst])){
-        // std::cout << "Increasing " << cSrc << " -> " << cDst << " by " <<  c->GetLatency() - 1 << std::endl;
-        _routers[cSrc]->IncVcBufferSize(c->GetSourcePort(), c->GetLatency() - 1);
+        // Outputs are counted from 1 instead of 0
+        _routers[cSrc]->IncVcBufferSize(c->GetSourcePort() - 1 , c->GetLatency() - 1);
       }
 
       // If needed change the latency of *only* the data channels. The credit channels are not affected by this 
