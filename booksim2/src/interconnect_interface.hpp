@@ -64,7 +64,6 @@ public:
   void Init();
   void UpdateStats();
   void DisplayStats();
-  void DisplayOverallStats();
   
   simTime GetIcntTime() const;
   int getNocFrequency(){return nocFrequencyMHz;}
@@ -119,6 +118,7 @@ protected:
   int hopDelay;
   uint32_t zsimPhaseLength;
   int iN; //dimension
+  ostream* _overall_stats_out;
 
 private:
   int stepsBeforeUpdateStats, stepsCnt;

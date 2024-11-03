@@ -300,6 +300,8 @@ BookSimConfig::BookSimConfig( )
   AddStrField("watch_out", "");
 
   AddStrField("stats_out", "");
+  
+  AddStrField("overall_stats_out", "");
 
 #ifdef TRACK_FLOWS
   AddStrField("injected_flits_out", "");

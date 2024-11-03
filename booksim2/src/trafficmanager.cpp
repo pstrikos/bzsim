@@ -398,7 +398,6 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
         _stats_out = new ofstream(stats_out_file.c_str());
         config.WriteMatlabFile(_stats_out);
     }
-  
 #ifdef TRACK_FLOWS
     _injected_flits.resize(_classes, vector<int>(_nodes, 0));
     _ejected_flits.resize(_classes, vector<int>(_nodes, 0));
@@ -666,6 +665,7 @@ TrafficManager::~TrafficManager( )
   
     if(gWatchOut && (gWatchOut != &cout)) delete gWatchOut;
     if(_stats_out && (_stats_out != &cout)) delete _stats_out;
+    // if(_overall_stats_out && (_overall_stats_out != &cout)) delete _overall_stats_out;
 
 #ifdef TRACK_FLOWS
     if(_injected_flits_out) delete _injected_flits_out;

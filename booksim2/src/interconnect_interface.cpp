@@ -64,6 +64,7 @@ InterconnectInterface::InterconnectInterface()
 
 InterconnectInterface::~InterconnectInterface()
 {
+  if(_overall_stats_out && (_overall_stats_out != &cout)) delete _overall_stats_out;
   delete _traffic_manager;
   _traffic_manager = NULL;
   delete _icnt_config;
@@ -139,6 +140,15 @@ void InterconnectInterface::CreateInterconnect()
 
   totalInFlightPackets = 0;
 
+  string overall_stats_out_file = _icnt_config->GetStr( "overall_stats_out" );
+  if(overall_stats_out_file == "") {
+      _overall_stats_out = NULL;
+  } else if(overall_stats_out_file == "-") {
+      _overall_stats_out = &cout;
+  } else {
+      _overall_stats_out = new ofstream(overall_stats_out_file.c_str());
+  }
+
 }
 
 void InterconnectInterface::Init()
@@ -159,23 +169,20 @@ void InterconnectInterface::UpdateStats()
 
 void InterconnectInterface::DisplayStats()
 {
-  _traffic_manager->DisplayStats();
-}
+  if(_overall_stats_out){
+    // hack: booksim2 use _drain_time and calculate delta time based on it, but we don't, change this if you have a better idea
+    _traffic_manager->updateDrainTime();
+    // hack: also _total_sims equals to number of kernel calls
 
-void InterconnectInterface::DisplayOverallStats()
-{
-  // hack: booksim2 use _drain_time and calculate delta time based on it, but we don't, change this if you have a better idea
-  _traffic_manager->updateDrainTime();
-  // hack: also _total_sims equals to number of kernel calls
+    _traffic_manager->_UpdateOverallStats();
+    _traffic_manager->DisplayOverallStats(*_overall_stats_out);
 
-  _traffic_manager->_UpdateOverallStats();
-  _traffic_manager->DisplayOverallStats();
-
-  double skippedPerc = (100.0*skippedSteps)/(skippedSteps+nonSkippedSteps);
-        std::cout << "Number of non-skipped steps = " << nonSkippedSteps << std::endl
-                  << "Number of skipped steps = " << skippedSteps 
-                      << " ( " <<  std::round(skippedPerc * 100)/100 <<  " \% )" << std::endl
-                  << "Total steps = " << skippedSteps + nonSkippedSteps << std::endl;
+    double skippedPerc = (100.0*skippedSteps)/(skippedSteps+nonSkippedSteps);
+          *_overall_stats_out << "Number of non-skipped steps = " << nonSkippedSteps << std::endl
+                    << "Number of skipped steps = " << skippedSteps 
+                        << " ( " <<  std::round(skippedPerc * 100)/100 <<  " \% )" << std::endl
+                    << "Total steps = " << skippedSteps + nonSkippedSteps << std::endl;
+  }
 }
 
 
@@ -223,7 +230,6 @@ void InterconnectInterface::Step(){
 #if !defined(_SKIP_STEP_) && !defined(_EMPTY_STEP_)
   if (++stepsCnt >= stepsBeforeUpdateStats){
     UpdateStats();
-    // DisplayStats();
     stepsCnt = 0;
   }
 #endif

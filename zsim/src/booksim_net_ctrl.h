@@ -100,7 +100,7 @@ class BookSimNetwork : public BaseCache {
         inline int getNumChildren() {return numChildren;}
         uint64_t invalidate(const InvReq& req);
 
-        void DisplayStats(){nocIf->DisplayOverallStats();}
+        void DisplayStats(){nocIf->DisplayStats();}
 
         void setLlnoc(bool _isLlnoc){isLlnoc = _isLlnoc;}
 
